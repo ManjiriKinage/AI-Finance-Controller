@@ -5,7 +5,7 @@ import { Navbar } from "@/components/Navbar";
 import { MoneyTrailModal } from "@/components/MoneyTrailModal";
 import { DailyCloseModal } from "@/components/DailyCloseModal";
 import { DecisionGateModal } from "@/components/DecisionGateModal";
-import { Layers, Search, Filter, CheckCircle2, AlertTriangle, Clock, XCircle, ArrowRight, Eye, Scale, Calculator } from "lucide-react";
+import { Layers, Search, Filter, CheckCircle2, AlertTriangle, Clock, XCircle, ArrowRight, Eye, Scale, Calculator, ArrowUpRight } from "lucide-react";
 import { api, ReconciliationItem, DailyCloseResponse } from "@/lib/api";
 
 export default function ReconciliationPage() {
@@ -62,16 +62,8 @@ export default function ReconciliationPage() {
     return matchesStatus && matchesSearch;
   });
 
-  const statusBadges = {
-    MATCHED: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
-    PARTIAL: "bg-amber-500/15 text-amber-400 border-amber-500/30",
-    MISMATCH: "bg-rose-500/15 text-rose-400 border-rose-500/30",
-    UNRESOLVED: "bg-slate-700/50 text-slate-300 border-slate-600",
-    AUTO_RESOLVED: "bg-indigo-500/15 text-indigo-400 border-indigo-500/30"
-  };
-
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col">
+    <div className="min-h-screen bg-slate-950 flex flex-col font-sans">
       <Navbar
         onReconcileTrigger={loadRecon}
         onOpenDailyClose={() => setIsDailyCloseOpen(true)}
@@ -82,133 +74,146 @@ export default function ReconciliationPage() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-white tracking-tight flex items-center space-x-2">
-              <Layers className="w-6 h-6 text-indigo-400" />
-              <span>3-Way Reconciliation Explorer</span>
+            <h1 className="text-xl sm:text-2xl font-semibold text-white tracking-tight flex items-center space-x-2">
+              <Layers className="w-5 h-5 text-indigo-400" />
+              <span>Reconciliation Ledger</span>
             </h1>
             <p className="text-xs text-slate-400 mt-1">
-              Multi-source matching with deterministic audit gates: Razorpay Payments ⟷ Settlement Batches ⟷ Bank Statement Credits
+              Multi-source 3-way matching: Payment Gateway Inflows ⟷ Settlement Batches ⟷ Bank Statement Credits
             </p>
           </div>
 
-          {/* Search & Status Filters */}
+          {/* Search & Status Filter Chips */}
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search Settlement ID or Tx..."
-                className="pl-9 pr-4 py-2 text-xs bg-slate-900 border border-slate-800 rounded-xl text-slate-200 placeholder-slate-500 focus:outline-hidden focus:border-indigo-500 w-48 sm:w-64"
+                placeholder="Filter by UTR, ID, or Reference..."
+                className="pl-8 pr-4 py-1.5 text-xs bg-slate-900 border border-slate-800 rounded-lg text-slate-200 placeholder-slate-500 focus:outline-hidden focus:border-slate-700 w-48 sm:w-64"
               />
             </div>
 
-            <div className="flex items-center space-x-1 bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs">
+            <div className="flex items-center space-x-1 bg-slate-900/80 p-1 rounded-lg border border-slate-800 text-xs">
               {["ALL", "MATCHED", "MISMATCH", "UNRESOLVED"].map((st) => (
                 <button
                   key={st}
                   onClick={() => setFilterStatus(st)}
-                  className={`px-3 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-md font-medium text-xs transition-all cursor-pointer ${
                     filterStatus === st
-                      ? "bg-indigo-600 text-white shadow-sm"
-                      : "text-slate-400 hover:text-white"
+                      ? "bg-slate-800 text-white border border-slate-700/60 shadow-xs"
+                      : "text-slate-400 hover:text-slate-200"
                   }`}
                 >
-                  {st}
+                  {st === "ALL" ? "All Entries" : st === "MATCHED" ? "Matched" : st === "MISMATCH" ? "Mismatches" : "Unresolved"}
                 </button>
               ))}
             </div>
           </div>
         </div>
 
-        {/* Reconciliation Table */}
-        <div className="rounded-2xl bg-slate-900/90 border border-slate-800 overflow-hidden shadow-xl">
+        {/* Compact Institutional Table */}
+        <div className="rounded-2xl bg-slate-900/70 border border-slate-800 overflow-hidden shadow-xs">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-950/80 border-b border-slate-800 text-slate-400 uppercase font-semibold tracking-wider">
+              <thead className="bg-slate-950/90 border-b border-slate-800 text-[11px] text-slate-400 uppercase font-mono tracking-wider">
                 <tr>
-                  <th className="py-3.5 px-4">Settlement ID</th>
-                  <th className="py-3.5 px-4">Bank Transaction</th>
-                  <th className="py-3.5 px-4">Match Status</th>
-                  <th className="py-3.5 px-4">Score</th>
-                  <th className="py-3.5 px-4">Expected Net</th>
-                  <th className="py-3.5 px-4">Bank Credit</th>
-                  <th className="py-3.5 px-4">Variance</th>
-                  <th className="py-3.5 px-4">Audit Gates</th>
-                  <th className="py-3.5 px-4">Money Trail</th>
+                  <th className="py-3 px-4">Settlement Batch</th>
+                  <th className="py-3 px-4">Bank Reference</th>
+                  <th className="py-3 px-4">Match Status</th>
+                  <th className="py-3 px-4">Score</th>
+                  <th className="py-3 px-4 text-right">Expected Net</th>
+                  <th className="py-3 px-4 text-right">Bank Credit</th>
+                  <th className="py-3 px-4 text-right">Variance</th>
+                  <th className="py-3 px-4 text-center">Match Logic</th>
+                  <th className="py-3 px-4 text-center">Audit Trail</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 text-slate-300">
                 {filtered.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-800/40 transition-colors">
+                  <tr key={item.id} className="hover:bg-slate-800/30 transition-colors">
                     
                     {/* Settlement ID */}
-                    <td className="py-3.5 px-4 font-mono font-medium text-white">
-                      {item.settlement_id || <span className="text-slate-500 italic">None (Direct Bank Entry)</span>}
+                    <td className="py-3 px-4 font-mono font-medium text-white">
+                      {item.settlement_id || <span className="text-slate-500 italic">Direct Bank Inflow</span>}
                     </td>
 
                     {/* Bank Tx ID */}
-                    <td className="py-3.5 px-4 font-mono text-slate-400">
-                      {item.bank_transaction_id || <span className="text-rose-400 italic">Missing from Bank</span>}
+                    <td className="py-3 px-4 font-mono text-slate-400">
+                      {item.bank_transaction_id || <span className="text-rose-400 italic">Uncredited</span>}
                     </td>
 
-                    {/* Match Status */}
-                    <td className="py-3.5 px-4">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${statusBadges[item.match_status] || "bg-slate-800 text-slate-300"}`}>
-                        {item.match_status}
-                      </span>
+                    {/* Subtle Minimalist Status Indicator */}
+                    <td className="py-3 px-4">
+                      {item.match_status === "MATCHED" ? (
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                          Matched
+                        </span>
+                      ) : item.match_status === "MISMATCH" ? (
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                          <span className="h-1.5 w-1.5 rounded-full bg-rose-400" />
+                          Mismatch
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-800 text-slate-400 border border-slate-700/60">
+                          <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+                          Unresolved
+                        </span>
+                      )}
                     </td>
 
                     {/* Score */}
-                    <td className="py-3.5 px-4 font-semibold">
+                    <td className="py-3 px-4 font-mono font-medium">
                       <span className={item.match_score >= 95 ? "text-emerald-400" : item.match_score >= 80 ? "text-amber-400" : "text-rose-400"}>
                         {item.match_score}%
                       </span>
                     </td>
 
                     {/* Expected Net */}
-                    <td className="py-3.5 px-4 font-semibold text-white">
+                    <td className="py-3 px-4 font-mono font-semibold text-white text-right">
                       ₹{item.expected_amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                     </td>
 
                     {/* Actual Bank Credit */}
-                    <td className="py-3.5 px-4 font-semibold text-slate-200">
+                    <td className="py-3 px-4 font-mono font-semibold text-slate-200 text-right">
                       ₹{item.actual_amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                     </td>
 
-                    {/* Difference */}
-                    <td className="py-3.5 px-4">
+                    {/* Variance */}
+                    <td className="py-3 px-4 text-right">
                       {item.difference > 0 ? (
-                        <span className="font-bold text-rose-400">
+                        <span className="font-mono font-bold text-rose-400">
                           -₹{item.difference.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                         </span>
                       ) : (
-                        <span className="text-emerald-400 font-medium">₹0.00</span>
+                        <span className="font-mono text-emerald-400">₹0.00</span>
                       )}
                     </td>
 
-                    {/* Why This Decision Gate Action */}
-                    <td className="py-3.5 px-4">
+                    {/* Match Logic */}
+                    <td className="py-3 px-4 text-center">
                       <button
                         onClick={() => handleOpenDecisionGate(item.id)}
-                        className="flex items-center space-x-1 px-2 py-1 text-[10px] font-bold rounded-lg bg-slate-950 hover:bg-slate-800 text-emerald-400 border border-emerald-500/30 transition-all cursor-pointer"
-                        title="Audit 6 deterministic gates and safety margin"
+                        className="inline-flex items-center space-x-1 px-2 py-1 text-[11px] font-medium rounded-md bg-slate-800/80 hover:bg-slate-800 text-slate-300 border border-slate-700/50 transition-colors cursor-pointer"
+                        title="Audit Deterministic Gates"
                       >
-                        <Scale className="w-3 h-3" />
-                        <span>Why Decision?</span>
+                        <Scale className="w-3 h-3 text-slate-400" />
+                        <span>Logic</span>
                       </button>
                     </td>
 
-                    {/* Money Trail Action */}
-                    <td className="py-3.5 px-4">
+                    {/* Audit Trail */}
+                    <td className="py-3 px-4 text-center">
                       {item.settlement_id ? (
                         <button
                           onClick={() => handleOpenTrail(item.settlement_id)}
-                          className="flex items-center space-x-1 px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-indigo-950/80 hover:bg-indigo-900 text-indigo-300 border border-indigo-700/50 transition-all cursor-pointer"
+                          className="inline-flex items-center space-x-1 px-2 py-1 text-[11px] font-medium rounded-md bg-indigo-950/60 hover:bg-indigo-900/80 text-indigo-300 border border-indigo-700/40 transition-colors cursor-pointer"
                         >
                           <Eye className="w-3 h-3" />
-                          <span>Money Trail</span>
+                          <span>Trace</span>
                         </button>
                       ) : (
                         <span className="text-slate-500 text-[11px] font-mono">{item.matching_method}</span>

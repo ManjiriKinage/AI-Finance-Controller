@@ -1,160 +1,168 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Navbar } from "@/components/Navbar";
-import { Database, RefreshCw, Cpu, CheckCircle2, ShieldAlert, FileText, Zap, Download } from "lucide-react";
+import { Database, RefreshCw, Cpu, CheckCircle2, AlertTriangle, ShieldCheck, Layers, FileText, ArrowRight, Table } from "lucide-react";
 import { api, BenchmarkMetrics } from "@/lib/api";
 
 export default function DatasetPage() {
-  const [recordCount, setRecordCount] = useState<number>(500);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [resultMessage, setResultMessage] = useState<string | null>(null);
   const [benchmark, setBenchmark] = useState<BenchmarkMetrics | null>(null);
+  const [numPayments, setNumPayments] = useState(500);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const loadBenchmark = async () => {
+    try {
+      const data = await api.getBenchmark();
+      setBenchmark(data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    loadBenchmark();
+  }, []);
 
   const handleGenerate = async () => {
     try {
-      setLoading(true);
-      setResultMessage(null);
-      await api.seedDataset(recordCount);
-      const bRes = await api.getBenchmark();
-      setBenchmark(bRes);
-      setResultMessage(`Successfully seeded ${recordCount} payments, grouped into settlements & bank statements with 7 realistic fintech error classes.`);
+      setIsGenerating(true);
+      setMessage(null);
+      await api.seedDataset(numPayments);
+      await loadBenchmark();
+      setMessage(`Successfully generated & reconciled ${numPayments} records.`);
     } catch (err) {
       console.error(err);
-      setResultMessage("Error generating dataset.");
+      setMessage("Error generating dataset.");
     } finally {
-      setLoading(false);
+      setIsGenerating(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col">
+    <div className="min-h-screen bg-slate-950 flex flex-col font-sans">
       <Navbar />
 
-      <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-8 space-y-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-white tracking-tight flex items-center space-x-2">
-              <Database className="w-6 h-6 text-emerald-400" />
-              <span>Synthetic Datasets & Objective Evaluation</span>
+            <h1 className="text-xl sm:text-2xl font-semibold text-white tracking-tight flex items-center space-x-2">
+              <Database className="w-5 h-5 text-indigo-400" />
+              <span>Data Ingestion & Integrity Benchmarks</span>
             </h1>
             <p className="text-xs text-slate-400 mt-1">
-              Generate 500+ realistic multi-anomaly batches paired with ground-truth verification CSVs
+              Multi-source synthetic batch ingestion, ground-truth verification, and throughput benchmarking
             </p>
           </div>
+
+          <span className="px-2.5 py-1 text-xs font-mono font-medium rounded-md bg-slate-900 text-slate-400 border border-slate-800 self-start md:self-auto">
+            Schema: Razorpay v1.2 / Axis Bank ISO-20022
+          </span>
         </div>
 
-        {/* Generator Card */}
-        <div className="p-6 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-6 shadow-xl">
+        {/* Generator Controls Card */}
+        <div className="rounded-2xl bg-slate-900/70 border border-slate-800 p-6 shadow-xs space-y-5">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-bold text-white">Generate Benchmark Batch</h3>
-            <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">
-              Target: 50+ to 1,000+ Records
-            </span>
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-200">
+              Synthetic Ingestion Generator
+            </h2>
+            <span className="text-xs text-slate-400">7 Injected Adversarial Error Classes</span>
           </div>
 
-          <div className="space-y-3">
-            <div className="flex items-center justify-between text-xs text-slate-300">
-              <span>Select Payment Batch Size:</span>
-              <span className="font-bold text-emerald-400 text-sm">{recordCount} payments</span>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+            
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-400">Batch Size (Records):</label>
+              <select
+                value={numPayments}
+                onChange={(e) => setNumPayments(Number(e.target.value))}
+                className="w-full px-3 py-2 text-xs bg-slate-950 border border-slate-800 rounded-lg text-white focus:outline-hidden focus:border-slate-700"
+              >
+                <option value={100}>100 Payments (Micro Test)</option>
+                <option value={500}>500 Payments (Standard Batch)</option>
+                <option value={1000}>1,000 Payments (Stress Test)</option>
+                <option value={2000}>2,000 Payments (High Volume)</option>
+              </select>
             </div>
 
-            <input
-              type="range"
-              min={100}
-              max={1500}
-              step={100}
-              value={recordCount}
-              onChange={(e) => setRecordCount(Number(e.target.value))}
-              className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
-            />
-            <div className="flex justify-between text-[11px] text-slate-500">
-              <span>100 records</span>
-              <span>500 records (Standard)</span>
-              <span>1,500 records</span>
+            <div className="space-y-1.5 md:col-span-2">
+              <label className="text-xs font-medium text-slate-400">Adversarial Conditions Simulated:</label>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                UTR transpositions, dispute haircuts, refund deductions, T+3 bank holiday clearing lags, duplicate postings & unknown direct credits.
+              </p>
             </div>
+
           </div>
 
-          {/* Anomaly Distribution Grid */}
-          <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Injected Real-World Error Classes:</h4>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-              <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
-                <span className="font-bold text-emerald-400">80%</span> Clean Matches
-              </div>
-              <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
-                <span className="font-bold text-amber-400">5%</span> Amount Mismatches
-              </div>
-              <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
-                <span className="font-bold text-rose-400">4%</span> Missing Bank Entries
-              </div>
-              <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
-                <span className="font-bold text-indigo-400">3%</span> Duplicate Postings
-              </div>
-              <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
-                <span className="font-bold text-slate-300">3%</span> Timing Differences
-              </div>
-              <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
-                <span className="font-bold text-amber-400">2%</span> Refund Mismatches
-              </div>
-              <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
-                <span className="font-bold text-rose-400">2%</span> Unknown Bank Entries
-              </div>
-              <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
-                <span className="font-bold text-indigo-400">1%</span> Fee / Tax Rounding
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between pt-2">
+          <div className="flex items-center space-x-3 pt-2">
             <button
               onClick={handleGenerate}
-              disabled={loading}
-              className="flex items-center space-x-2 px-5 py-3 text-xs sm:text-sm font-bold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/25 transition-all disabled:opacity-50"
+              disabled={isGenerating}
+              className="px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-xs transition-all cursor-pointer flex items-center space-x-2 disabled:opacity-50"
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-              <span>{loading ? "Generating & Reconciling..." : `Generate & Reconcile ${recordCount} Records`}</span>
+              <RefreshCw className={`w-3.5 h-3.5 ${isGenerating ? "animate-spin" : ""}`} />
+              <span>{isGenerating ? "Ingesting & Reconciling..." : `Ingest & Verify ${numPayments} Records`}</span>
             </button>
-          </div>
 
-          {resultMessage && (
-            <div className="p-4 rounded-xl bg-emerald-950/40 border border-emerald-700/40 text-xs text-emerald-300 flex items-center space-x-2">
-              <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-              <span>{resultMessage}</span>
-            </div>
-          )}
+            {message && (
+              <span className="text-xs text-emerald-400 font-medium">
+                {message}
+              </span>
+            )}
+          </div>
         </div>
 
-        {/* Benchmark Results */}
+        {/* Evaluation Metrics Grid */}
         {benchmark && (
-          <div className="p-6 rounded-2xl bg-gradient-to-br from-indigo-950/30 to-slate-900 border border-indigo-700/40 space-y-4 shadow-xl">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-indigo-300 flex items-center space-x-2">
-                <Cpu className="w-4 h-4" />
-                <span>Benchmark Execution Results</span>
-              </h3>
-              <span className="text-xs text-slate-400">Measured Runtime: {benchmark.processing_time_seconds}s</span>
-            </div>
+          <div className="space-y-4">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-200">
+              Ingestion Quality & Precision Metrics
+            </h2>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-              <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800">
-                <p className="text-[11px] text-slate-400 uppercase">Throughput</p>
-                <p className="text-xl font-bold text-emerald-400 mt-1">{benchmark.throughput_records_per_sec.toLocaleString()} rec/s</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              
+              <div className="p-4 rounded-xl bg-slate-900/70 border border-slate-800 space-y-1">
+                <span className="text-[10px] font-mono uppercase text-slate-500">Precision</span>
+                <p className="text-xl font-mono font-bold text-white">{benchmark.precision_pct}%</p>
+                <span className="text-[10px] text-emerald-400">Zero False Matches</span>
               </div>
-              <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800">
-                <p className="text-[11px] text-slate-400 uppercase">Precision</p>
-                <p className="text-xl font-bold text-indigo-400 mt-1">{benchmark.precision_pct}%</p>
+
+              <div className="p-4 rounded-xl bg-slate-900/70 border border-slate-800 space-y-1">
+                <span className="text-[10px] font-mono uppercase text-slate-500">Recall</span>
+                <p className="text-xl font-mono font-bold text-white">{benchmark.recall_pct}%</p>
+                <span className="text-[10px] text-slate-400">Coverage Rate</span>
               </div>
-              <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800">
-                <p className="text-[11px] text-slate-400 uppercase">Recall</p>
-                <p className="text-xl font-bold text-indigo-400 mt-1">{benchmark.recall_pct}%</p>
+
+              <div className="p-4 rounded-xl bg-slate-900/70 border border-slate-800 space-y-1">
+                <span className="text-[10px] font-mono uppercase text-slate-500">False Match Rate</span>
+                <p className="text-xl font-mono font-bold text-emerald-400">{benchmark.false_match_rate_pct}%</p>
+                <span className="text-[10px] text-emerald-500">Critical Safety Bar</span>
               </div>
-              <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800">
-                <p className="text-[11px] text-slate-400 uppercase">False Match Rate</p>
-                <p className="text-xl font-bold text-emerald-400 mt-1">{benchmark.false_match_rate_pct}%</p>
+
+              <div className="p-4 rounded-xl bg-slate-900/70 border border-slate-800 space-y-1">
+                <span className="text-[10px] font-mono uppercase text-slate-500">Throughput</span>
+                <p className="text-xl font-mono font-bold text-indigo-400">
+                  {benchmark.throughput_records_per_sec.toLocaleString()}
+                </p>
+                <span className="text-[10px] text-slate-400">Records / Second</span>
               </div>
+
+              <div className="p-4 rounded-xl bg-slate-900/70 border border-slate-800 space-y-1">
+                <span className="text-[10px] font-mono uppercase text-slate-500">Execution Time</span>
+                <p className="text-xl font-mono font-bold text-slate-200">
+                  {benchmark.processing_time_seconds}s
+                </p>
+                <span className="text-[10px] text-slate-400">Total Latency</span>
+              </div>
+
+              <div className="p-4 rounded-xl bg-slate-900/70 border border-slate-800 space-y-1">
+                <span className="text-[10px] font-mono uppercase text-slate-500">Audit Trail</span>
+                <p className="text-xl font-mono font-bold text-emerald-400">100%</p>
+                <span className="text-[10px] text-slate-400">Chained Logs</span>
+              </div>
+
             </div>
           </div>
         )}

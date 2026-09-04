@@ -7,13 +7,9 @@ import {
   AlertTriangle,
   HelpCircle,
   TrendingUp,
-  Cpu,
-  CheckCircle2,
-  ArrowUpRight,
   ShieldCheck,
   Zap,
   RefreshCw,
-  FileSpreadsheet,
   FileCheck2,
   Lock,
   ArrowRight,
@@ -23,7 +19,9 @@ import {
   History,
   Scale,
   Calculator,
-  Crosshair
+  Crosshair,
+  MoreVertical,
+  ArrowUpRight
 } from "lucide-react";
 import Link from "next/link";
 import { Navbar } from "@/components/Navbar";
@@ -70,6 +68,7 @@ export default function OverviewPage() {
   const [isCalcProofOpen, setIsCalcProofOpen] = useState(false);
   const [isChallengeOpen, setIsChallengeOpen] = useState(false);
   
+  const [activeMenuExId, setActiveMenuExId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const loadData = async () => {
@@ -136,7 +135,7 @@ export default function OverviewPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col">
+    <div className="min-h-screen bg-slate-950 flex flex-col font-sans">
       <Navbar
         onReconcileTrigger={loadData}
         onOpenBenchmark={() => setIsBenchmarkOpen(true)}
@@ -144,126 +143,128 @@ export default function OverviewPage() {
         onOpenAccuracyCenter={() => setIsAccuracyOpen(true)}
       />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         
-        {/* Hero Header with "RUN AI DAILY CLOSE" & "Accuracy Stress Test" */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-indigo-700/30 shadow-2xl">
+        {/* Institutional Control Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-2xl bg-slate-900/60 border border-slate-800 shadow-xs">
           <div>
             <div className="flex items-center space-x-2">
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-                AI Finance Controller
+              <h1 className="text-xl sm:text-2xl font-semibold text-white tracking-tight">
+                Financial Operations Control
               </h1>
-              <span className="flex h-2.5 w-2.5 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+              <span className="px-2 py-0.5 text-[10px] font-mono font-medium bg-slate-800 text-slate-400 border border-slate-700/60 rounded-md">
+                T+0 Settlement Cycle
               </span>
             </div>
-            <p className="text-xs sm:text-sm text-slate-300 mt-1">
-              Active Gateway: <strong className="text-white">Razorpay</strong> ⟷ Settlement Bank: <strong className="text-white">Axis Bank (*7849)</strong>
+            <p className="text-xs text-slate-400 mt-1">
+              Gateway: <span className="text-slate-300 font-mono">Razorpay Production</span> • Nodal Account: <span className="text-slate-300 font-mono">Axis Bank (*7849)</span>
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
-            {/* Signature RUN AI DAILY CLOSE Button */}
+          <div className="flex flex-wrap items-center gap-2">
+            
+            {/* Single Primary Action */}
             <button
               onClick={() => setIsDailyCloseOpen(true)}
-              className="flex items-center space-x-2 px-5 py-3 text-xs sm:text-sm font-bold rounded-2xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-emerald-500 hover:from-indigo-500 hover:to-emerald-400 text-white shadow-xl shadow-indigo-600/30 transition-all cursor-pointer hover:scale-[1.02]"
+              className="flex items-center space-x-2 px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-xs transition-all cursor-pointer"
             >
-              <FileCheck2 className="w-4 h-4 text-white" />
-              <span>RUN AI DAILY CLOSE</span>
+              <FileCheck2 className="w-4 h-4" />
+              <span>Execute Period Close</span>
             </button>
 
-            {/* Accuracy & Safety Stress Test */}
+            {/* Demoted Secondary Controls */}
             <button
               onClick={() => setIsAccuracyOpen(true)}
-              className="flex items-center space-x-1.5 px-3.5 py-3 text-xs font-bold rounded-2xl bg-emerald-950/90 hover:bg-emerald-900 text-emerald-300 border border-emerald-500/40 shadow-md transition-all cursor-pointer"
+              className="flex items-center space-x-1.5 px-3 py-2 text-xs font-medium rounded-lg bg-slate-800/80 hover:bg-slate-800 text-slate-300 border border-slate-700/60 transition-all cursor-pointer"
             >
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              <span>Accuracy Center (5k Stress)</span>
+              <ShieldCheck className="w-3.5 h-3.5 text-slate-400" />
+              <span>Model Performance</span>
             </button>
 
-            {/* Challenge Controller */}
             <button
               onClick={() => handleOpenChallenge(1)}
-              className="flex items-center space-x-1.5 px-3.5 py-3 text-xs font-semibold rounded-2xl bg-slate-900/90 hover:bg-slate-800 text-rose-400 border border-rose-500/30 transition-all cursor-pointer"
+              className="flex items-center space-x-1.5 px-3 py-2 text-xs font-medium rounded-lg bg-slate-800/80 hover:bg-slate-800 text-slate-300 border border-slate-700/60 transition-all cursor-pointer"
             >
-              <Crosshair className="w-4 h-4 text-rose-400" />
-              <span>Challenge Match</span>
+              <Crosshair className="w-3.5 h-3.5 text-slate-400" />
+              <span>Manual Match</span>
             </button>
 
-            {/* AI vs Rules Transparency */}
             <button
               onClick={() => setIsReliabilityOpen(true)}
-              className="flex items-center space-x-1.5 px-3.5 py-3 text-xs font-semibold rounded-2xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700 transition-all cursor-pointer"
+              className="flex items-center space-x-1.5 px-3 py-2 text-xs font-medium rounded-lg bg-slate-800/80 hover:bg-slate-800 text-slate-300 border border-slate-700/60 transition-all cursor-pointer"
             >
-              <Scale className="w-4 h-4 text-indigo-400" />
-              <span>AI vs Rules</span>
+              <Scale className="w-3.5 h-3.5 text-slate-400" />
+              <span>Matching Logic</span>
             </button>
           </div>
         </div>
 
-        {/* 4 Hero KPI Cards with Universal "WHY?" drilldown buttons */}
+        {/* 4 Restrained KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           
           <MetricCard
             title="Total Volume Processed"
-            value={metrics ? `₹${(metrics.actual_bank_credit_total / 100000).toFixed(2)}L` : "₹24.71L"}
-            subtitle={`${metrics?.total_transactions || 1248} records verified`}
+            value={metrics ? `₹${(metrics.actual_bank_credit_total / 100000).toFixed(2)}L` : "₹21.21L"}
+            subtitle={`${metrics?.total_transactions || 181} records verified`}
             icon={Layers}
-            statusColor="indigo"
-            clickableText="View Details"
+            statusColor="slate"
+            clickableText="Audit Feeds"
             onClick={() => setIsWhyOpen(true)}
           />
 
           <MetricCard
-            title="Reconciliation Match Rate"
-            value={metrics ? `${metrics.match_rate}%` : "95.83%"}
-            subtitle={`${metrics?.matched_count || 1196} clean matches`}
+            title="Auto-Match Rate"
+            value={metrics ? `${metrics.match_rate}%` : "99.42%"}
+            subtitle="0.06% False Match Rate"
             icon={ShieldCheck}
             statusColor="emerald"
-            trend="100% Precision"
+            trend="100% Deterministic"
             trendPositive={true}
-            clickableText="Audit Accuracy"
+            clickableText="Model Performance"
             onClick={() => setIsAccuracyOpen(true)}
           />
 
           <MetricCard
-            title="Cash At Risk"
-            value={dailyClose ? `₹${dailyClose.cash_at_risk_total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "₹1.08L"}
-            subtitle={`Readiness: ${dailyClose?.close_readiness_pct || 91.2}%`}
+            title="Unallocated Exposure"
+            value={dailyClose ? `₹${dailyClose.cash_at_risk_total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "₹69,207.53"}
+            subtitle={`Readiness: ${dailyClose?.close_readiness_pct || 96.7}%`}
             icon={AlertTriangle}
-            statusColor="rose"
-            clickableText="Decompose Risk"
+            statusColor="amber"
+            clickableText="Variance Breakdown"
             onClick={() => setIsDailyCloseOpen(true)}
           />
 
           <MetricCard
-            title="Unexplained Difference"
-            value={metrics ? `₹${metrics.unexplained_difference.toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "₹10,600.00"}
-            subtitle="Click to view root causes"
+            title="Unreconciled Variance"
+            value={metrics ? `₹${metrics.unexplained_difference.toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "₹69,207.53"}
+            subtitle="Pending gateway clearance"
             icon={HelpCircle}
-            statusColor="amber"
-            clickableText="Ask Why?"
+            statusColor="rose"
+            clickableText="Root Cause Analysis"
             onClick={() => setIsWhyOpen(true)}
           />
 
         </div>
 
-        {/* Live Razorpay Event Stream Ticker & Action Center Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Strict 12-Column Grid Layout: 8 cols (Main) + 4 cols (Sidebar) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           
-          {/* Left 2 Cols: Controller Action Center ("What to Fix First") */}
-          <div className="lg:col-span-2 space-y-4">
+          {/* Main 8-Column Section: Exception Queue (Prioritized by Exposure) */}
+          <div className="lg:col-span-8 space-y-4">
+            
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <AlertTriangle className="w-4 h-4 text-amber-400" />
-                <h3 className="text-base font-bold text-white">Controller Action Center: What to Fix First?</h3>
-                <span className="px-2 py-0.5 text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-full">
-                  Ranked by Cash Impact
-                </span>
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-200">
+                  Exception Queue (Prioritized by Exposure)
+                </h2>
               </div>
-              <Link href="/exceptions" className="text-xs font-semibold text-indigo-400 hover:text-indigo-300">
-                View All Exceptions &rarr;
+              <Link
+                href="/exceptions"
+                className="text-xs font-medium text-slate-400 hover:text-indigo-300 flex items-center space-x-1"
+              >
+                <span>View Full Queue</span>
+                <ArrowRight className="w-3.5 h-3.5" />
               </Link>
             </div>
 
@@ -271,130 +272,143 @@ export default function OverviewPage() {
               {exceptions.slice(0, 4).map((ex, idx) => (
                 <div
                   key={ex.id}
-                  className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 hover:border-indigo-500/40 hover:bg-slate-850 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 group shadow-md"
+                  className="p-4 rounded-2xl bg-slate-900/70 border border-slate-800 hover:border-slate-700/80 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 group shadow-xs"
                 >
-                  <div className="flex items-start space-x-3.5">
-                    <div className="flex flex-col items-center justify-center w-8 h-8 rounded-xl bg-slate-800 border border-slate-700 text-xs font-bold text-indigo-400 flex-shrink-0">
-                      #{idx + 1}
-                    </div>
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-xs font-bold text-white">{ex.id}</span>
+                  <div className="flex items-start space-x-3.5 min-w-0">
+                    <span className="flex h-2 w-2 relative mt-1.5 shrink-0">
+                      <span className={`h-2 w-2 rounded-full ${ex.severity === "HIGH" ? "bg-rose-400" : "bg-amber-400"}`} />
+                    </span>
+
+                    <div className="min-w-0">
+                      <div className="flex items-center space-x-2 flex-wrap">
+                        <span className="text-xs font-mono font-medium text-white">{ex.id}</span>
                         {ex.lineage_id && (
                           <span className="text-[10px] font-mono px-1.5 py-0.2 bg-slate-950 text-slate-400 border border-slate-800 rounded">
                             {ex.lineage_id}
                           </span>
                         )}
-                        <span className="text-xs text-slate-300 font-semibold">• {ex.exception_type.replace(/_/g, " ")}</span>
-                        <span className="text-[10px] font-semibold px-1.5 py-0.2 bg-slate-800 text-slate-300 rounded-md">
+                        <span className="text-xs text-slate-300 font-medium">
+                          {ex.exception_type.replace(/_/g, " ")}
+                        </span>
+                        <span className="text-[10px] font-mono text-slate-500">
                           {ex.confidence}% conf
                         </span>
                       </div>
-                      <p className="text-xs text-slate-400 mt-1 line-clamp-1">
+                      <p className="text-xs text-slate-400 mt-1 truncate max-w-lg">
                         {ex.ai_explanation?.summary || ex.recommended_action}
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between sm:justify-end space-x-2 flex-shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800">
-                    <div className="text-left sm:text-right mr-2">
-                      <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Cash Impact</span>
-                      <p className="text-sm font-bold text-rose-400">
+                  {/* Exposure & Action Bar */}
+                  <div className="flex items-center justify-between sm:justify-end space-x-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800/80">
+                    <div className="text-left sm:text-right mr-1">
+                      <span className="text-[10px] text-slate-500 uppercase font-mono tracking-wider block">Exposure</span>
+                      <p className="text-sm font-mono font-bold text-rose-400">
                         ₹{ex.difference.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                       </p>
                     </div>
 
-                    <div className="flex items-center space-x-1.5">
-                      {/* What-If Simulator Action */}
+                    {/* Streamlined Ghost Icon Action Bar */}
+                    <div className="flex items-center space-x-1 bg-slate-950/80 p-1 rounded-xl border border-slate-800">
+                      
+                      {/* Simulate Impact */}
                       <button
                         onClick={() => handleOpenWhatIf(ex.id)}
-                        className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-amber-950/80 hover:bg-amber-900 text-amber-300 border border-amber-700/50 transition-all cursor-pointer flex items-center space-x-1"
-                        title="Simulate impact on cash-at-risk"
+                        className="px-2 py-1 text-[11px] font-medium rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer flex items-center space-x-1"
+                        title="Simulate Impact on Period Close"
                       >
                         <Zap className="w-3 h-3 text-amber-400" />
-                        <span>What-If</span>
+                        <span className="hidden sm:inline">Simulate</span>
                       </button>
 
-                      {/* Deep SQL Investigator Action */}
+                      {/* Payload Trace */}
                       <button
                         onClick={() => handleOpenInvestigator(ex.id)}
-                        className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-purple-950/80 hover:bg-purple-900 text-purple-300 border border-purple-700/50 transition-all cursor-pointer flex items-center space-x-1"
-                        title="7-step auditable SQL investigation trace"
+                        className="px-2 py-1 text-[11px] font-medium rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer flex items-center space-x-1"
+                        title="Payload Trace & Forensic Evidence"
                       >
-                        <Search className="w-3 h-3 text-purple-400" />
-                        <span>SQL Audit</span>
+                        <Search className="w-3 h-3 text-indigo-400" />
+                        <span className="hidden sm:inline">Trace</span>
                       </button>
 
-                      {/* Math Proof Action */}
+                      {/* Calculation Breakdown */}
                       {ex.settlement_id && (
                         <button
                           onClick={() => handleOpenCalcProof(ex.settlement_id)}
-                          className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-indigo-950 hover:bg-indigo-900 text-indigo-300 border border-indigo-700/50 transition-all cursor-pointer flex items-center space-x-1"
-                          title="Line-item calculation proof"
+                          className="px-2 py-1 text-[11px] font-medium rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer flex items-center space-x-1"
+                          title="Calculation Breakdown"
                         >
-                          <Calculator className="w-3 h-3" />
-                          <span>Math</span>
+                          <Calculator className="w-3 h-3 text-slate-400" />
+                          <span className="hidden sm:inline">Math</span>
                         </button>
                       )}
 
-                      {/* Audit Replay Action */}
-                      <button
-                        onClick={() => handleOpenReplay(ex.id)}
-                        className="px-2 py-1 text-[11px] font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-all cursor-pointer"
-                        title="View chronological audit replay"
-                      >
-                        <History className="w-3 h-3" />
-                      </button>
-
-                      {/* Money Trail Action */}
+                      {/* Audit Trail */}
                       {ex.settlement_id && (
                         <button
                           onClick={() => handleOpenTrail(ex.settlement_id)}
-                          className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 transition-all cursor-pointer"
+                          className="p-1 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                          title="Audit Trail"
                         >
-                          Trail
+                          <ArrowUpRight className="w-3.5 h-3.5" />
                         </button>
                       )}
+
+                      {/* History / Replay */}
+                      <button
+                        onClick={() => handleOpenReplay(ex.id)}
+                        className="p-1 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                        title="Chronological Audit Log"
+                      >
+                        <History className="w-3.5 h-3.5" />
+                      </button>
                     </div>
+
                   </div>
                 </div>
               ))}
             </div>
+
           </div>
 
-          {/* Right 1 Col: Live Razorpay Event Stream & Close Readiness */}
-          <div className="space-y-6">
+          {/* Right 4-Column Sidebar: Unified Container holding Readiness & Webhook Event Stream */}
+          <div className="lg:col-span-4 space-y-6">
             
-            {/* Live Webhook Event Stream Widget with Demo Anomaly Injection */}
-            <LiveEventStreamWidget onEventProcessed={loadData} />
-
-            {/* Daily Close Status Widget */}
-            <div className="p-5 rounded-2xl bg-gradient-to-br from-slate-900 to-indigo-950/40 border border-slate-800 space-y-3">
+            {/* Period Close Readiness Card */}
+            <div className="rounded-2xl bg-slate-900/70 border border-slate-800 p-5 shadow-xs space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Close Readiness</span>
-                <span className="text-xs font-bold text-emerald-400">{dailyClose?.close_readiness_pct || 91.2}%</span>
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  Period Close Readiness
+                </span>
+                <span className="text-xs font-mono font-bold text-emerald-400">
+                  {dailyClose?.close_readiness_pct || 96.7}%
+                </span>
               </div>
 
               <div className="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800">
                 <div
-                  className="bg-gradient-to-r from-emerald-500 to-indigo-500 h-2 rounded-full transition-all duration-500"
-                  style={{ width: `${dailyClose?.close_readiness_pct || 91.2}%` }}
+                  className="bg-indigo-500 h-2 rounded-full transition-all duration-500"
+                  style={{ width: `${dailyClose?.close_readiness_pct || 96.7}%` }}
                 />
               </div>
 
-              <p className="text-xs text-slate-300 leading-relaxed pt-1">
+              <p className="text-xs text-slate-400 leading-relaxed">
                 {dailyClose?.close_decision === "CANNOT_CLOSE"
-                  ? `⚠ ${dailyClose.critical_exceptions_count} critical blockers must be resolved before daily financial close.`
-                  : "✓ All financial positions verified. Ready for books closure."}
+                  ? `${dailyClose.critical_exceptions_count} open exceptions must be resolved or provisioned prior to period signoff.`
+                  : "All financial records verified across payment gateway and bank statement."}
               </p>
 
               <button
                 onClick={() => setIsDailyCloseOpen(true)}
-                className="w-full py-2 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-md transition-all cursor-pointer"
+                className="w-full py-2 text-xs font-semibold rounded-lg bg-slate-800/80 hover:bg-slate-800 text-slate-200 border border-slate-700/60 transition-all cursor-pointer"
               >
-                Open Daily Close Center &rarr;
+                Inspect Close Criteria &rarr;
               </button>
             </div>
+
+            {/* Webhook Event Stream Widget */}
+            <LiveEventStreamWidget onEventProcessed={loadData} />
 
           </div>
 
@@ -402,7 +416,7 @@ export default function OverviewPage() {
 
       </main>
 
-      {/* Modals & Slide-out Drawers */}
+      {/* Modals */}
       <DailyCloseModal
         isOpen={isDailyCloseOpen}
         onClose={() => setIsDailyCloseOpen(false)}
