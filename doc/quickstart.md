@@ -62,3 +62,20 @@ A healthy service returns HTTP status `200`.
 ## Stop the application
 
 Press `Ctrl+C` in each terminal running the backend or frontend.
+
+
+Terminal 1:
+
+```powershell
+Set-Location "D:\projects2\AI Finance Controller"
+python -m pip install -r backend/requirements.txt
+python -m uvicorn backend.app:app --host 127.0.0.1 --port 8000
+```
+
+Terminal 2:
+
+```powershell
+Set-Location "D:\projects2\AI Finance Controller\frontend"
+npm install
+npm run dev
+```
