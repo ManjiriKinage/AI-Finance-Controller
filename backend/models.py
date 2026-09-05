@@ -1,7 +1,18 @@
 import datetime
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, JSON, Boolean, Text
+from decimal import Decimal, ROUND_HALF_UP
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, JSON, Boolean, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 from backend.database import Base
+
+def quantize_inr(amount: float | int | Decimal | None) -> float:
+    """
+    Enforces strict decimal quantization to 2 decimal places (paise)
+    to eliminate floating-point drift (e.g. 0.3000000004).
+    """
+    if amount is None:
+        return 0.0
+    d = Decimal(str(amount))
+    return float(d.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
 class Merchant(Base):
     __tablename__ = "merchants"
@@ -18,7 +29,7 @@ class Payment(Base):
     merchant_id = Column(String, ForeignKey("merchants.id"), default="mer_001")
     lineage_id = Column(String, index=True, nullable=True) # LIN-xxxx
     order_id = Column(String, index=True)
-    amount = Column(Float, nullable=False) # In Rupees
+    amount = Column(Float, nullable=False) # In Rupees (Quantized to 2 decimals)
     currency = Column(String, default="INR")
     status = Column(String, default="captured") # captured, failed, refunded
     method = Column(String, default="upi") # upi, card, netbanking, wallet
@@ -135,3 +146,14 @@ class ForecastSnapshot(Base):
     projected_30d = Column(Float, default=0.0)
     confidence_score = Column(Float, default=85.0)
     details = Column(JSON, nullable=True)
+
+class ProcessedWebhook(Base):
+    __tablename__ = "processed_webhooks"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    gateway = Column(String, default="razorpay", index=True)
+    event_id = Column(String, unique=True, index=True, nullable=False)
+    event_type = Column(String, nullable=False)
+    payload_hash = Column(String, nullable=True)
+    status = Column(String, default="PROCESSED") # PROCESSED, DUPLICATE_SKIPPED, FAILED
+    processed_at = Column(DateTime, default=datetime.datetime.utcnow)

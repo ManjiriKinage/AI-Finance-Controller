@@ -1,8 +1,10 @@
 import os
+import json
+import hashlib
 import datetime
 from contextlib import asynccontextmanager
 from typing import List, Dict, Any, Optional
-from fastapi import FastAPI, Depends, HTTPException, Query, Body
+from fastapi import FastAPI, Depends, HTTPException, Query, Body, Header, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -10,7 +12,8 @@ from sqlalchemy import func
 from backend.database import engine, get_db, Base, SessionLocal
 from backend.models import (
     Merchant, Payment, Settlement, SettlementItem,
-    BankTransaction, ReconciliationResult, ExceptionRecord, AuditLog, ForecastSnapshot
+    BankTransaction, ReconciliationResult, ExceptionRecord, AuditLog, ForecastSnapshot,
+    ProcessedWebhook, quantize_inr
 )
 from backend.schemas import (
     OverviewMetrics, BenchmarkMetrics, CashForecastResponse,
@@ -20,6 +23,7 @@ from backend.schemas import (
     AuditReplayResponse, ReliabilityMetrics, CloseRouteOption,
     AccuracyStressTestResponse, CalculationProofResponse, ChallengeControllerResponse, DecisionGateResponse
 )
+from backend.security import verify_razorpay_signature, RAZORPAY_WEBHOOK_SECRET, BYPASS_SIGNATURE_VERIFY
 from backend.synthetic_data import generate_synthetic_dataset
 from backend.recon_engine import ReconciliationEngine
 from backend.ai_service import AIControllerService
@@ -35,6 +39,7 @@ GLOBAL_GROUND_TRUTH = []
 
 def seed_database_internal(db: Session, num_payments: int = 500):
     global GLOBAL_GROUND_TRUTH
+    db.query(ProcessedWebhook).delete()
     db.query(AuditLog).delete()
     db.query(ExceptionRecord).delete()
     db.query(ReconciliationResult).delete()
@@ -58,13 +63,13 @@ def seed_database_internal(db: Session, num_payments: int = 500):
             merchant_id=p["merchant_id"],
             lineage_id=f"LIN-{(p['id'])[-6:]}",
             order_id=p["order_id"],
-            amount=p["amount"],
+            amount=quantize_inr(p["amount"]),
             currency=p["currency"],
             status=p["status"],
             method=p["method"],
-            fee=p["fee"],
-            tax=p["tax"],
-            amount_refunded=p["amount_refunded"],
+            fee=quantize_inr(p["fee"]),
+            tax=quantize_inr(p["tax"]),
+            amount_refunded=quantize_inr(p["amount_refunded"]),
             customer_email=p["customer_email"],
             captured_at=datetime.datetime.fromisoformat(p["captured_at"]) if p["captured_at"] else None,
             created_at=datetime.datetime.fromisoformat(p["created_at"])
@@ -75,10 +80,10 @@ def seed_database_internal(db: Session, num_payments: int = 500):
             id=s["id"],
             merchant_id=s["merchant_id"],
             lineage_id=f"LIN-{(s['utr'])[-6:]}",
-            amount=s["amount"],
-            gross_amount=s["gross_amount"],
-            fees=s["fees"],
-            tax=s["tax"],
+            amount=quantize_inr(s["amount"]),
+            gross_amount=quantize_inr(s["gross_amount"]),
+            fees=quantize_inr(s["fees"]),
+            tax=quantize_inr(s["tax"]),
             utr=s["utr"],
             status=s["status"],
             settlement_period=s["settlement_period"],
@@ -90,9 +95,9 @@ def seed_database_internal(db: Session, num_payments: int = 500):
             settlement_id=si["settlement_id"],
             payment_id=si["payment_id"],
             type=si["type"],
-            amount=si["amount"],
-            fee=si["fee"],
-            tax=si["tax"]
+            amount=quantize_inr(si["amount"]),
+            fee=quantize_inr(si["fee"]),
+            tax=quantize_inr(si["tax"])
         ))
 
     for b in dataset["bank_transactions"]:
@@ -103,9 +108,9 @@ def seed_database_internal(db: Session, num_payments: int = 500):
             value_date=datetime.datetime.fromisoformat(b["value_date"]),
             description=b["description"],
             reference=b["reference"],
-            credit=b["credit"],
-            debit=b["debit"],
-            balance=b["balance"],
+            credit=quantize_inr(b["credit"]),
+            debit=quantize_inr(b["debit"]),
+            balance=quantize_inr(b["balance"]),
             bank_utr=b["bank_utr"]
         ))
 
@@ -113,7 +118,7 @@ def seed_database_internal(db: Session, num_payments: int = 500):
 
     engine_inst = ReconciliationEngine(db)
     engine_inst.run_reconciliation()
-    print("Database successfully seeded and reconciled.")
+    print("Database successfully seeded, quantized, and reconciled.")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -127,8 +132,8 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(
-    title="AI Finance Controller API",
-    description="Deterministic Multi-Source Reconciliation, Evidence-backed Exception Management, and Cash Intelligence",
+    title="Autonomous Finance Cloud (ReconOps) API",
+    description="Deterministic Multi-Source Reconciliation, Cryptographic Webhook Ingestion, and Cash Governance",
     version="1.0.0",
     lifespan=lifespan
 )
@@ -143,7 +148,92 @@ app.add_middleware(
 
 @app.get("/api/health")
 def health_check():
-    return {"status": "healthy", "service": "AI Finance Controller", "timestamp": datetime.datetime.now(datetime.UTC).isoformat()}
+    return {
+        "status": "healthy",
+        "service": "Autonomous Finance Cloud (ReconOps)",
+        "signature_verification": "ACTIVE" if not BYPASS_SIGNATURE_VERIFY else "SANDBOX_BYPASS_MODE",
+        "timestamp": datetime.datetime.now(datetime.UTC).isoformat()
+    }
+
+# --- Production Webhook Ingestion with Signature & Idempotency ---
+
+@app.post("/api/webhooks/razorpay")
+async def ingest_razorpay_webhook(
+    request: Request,
+    x_razorpay_signature: Optional[str] = Header(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Authenticates incoming Razorpay webhook events using HMAC SHA256 signature verification
+    and enforces strict deduplication/idempotency protection.
+    """
+    raw_body = await request.body()
+    
+    # 1. Cryptographic HMAC SHA256 Signature Verification
+    is_valid, reason = verify_razorpay_signature(raw_body, x_razorpay_signature)
+    if not is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Webhook authentication failed: {reason}"
+        )
+        
+    try:
+        payload = json.loads(raw_body.decode("utf-8")) if raw_body else {}
+    except Exception:
+        raise HTTPException(status_code=400, detail="Malformed JSON payload")
+        
+    event_id = payload.get("id") or f"evt_{hashlib.md5(raw_body).hexdigest()[:12]}"
+    event_type = payload.get("event") or "payment.captured"
+    payload_hash = hashlib.sha256(raw_body).hexdigest()
+    
+    # 2. Idempotency Check: Prevent duplicate webhook retries from corrupting ledger
+    existing_event = db.query(ProcessedWebhook).filter(ProcessedWebhook.event_id == event_id).first()
+    if existing_event:
+        return {
+            "status": "DUPLICATE_EVENT_SAFELY_SKIPPED",
+            "message": f"Event {event_id} was already processed at {existing_event.processed_at.isoformat()}",
+            "event_id": event_id,
+            "deduplication_enforced": True
+        }
+        
+    # Record webhook in idempotency tracking log
+    webhook_log = ProcessedWebhook(
+        gateway="razorpay",
+        event_id=event_id,
+        event_type=event_type,
+        payload_hash=payload_hash,
+        status="PROCESSED"
+    )
+    db.add(webhook_log)
+    db.commit()
+    
+    # Process entity payload
+    entity = payload.get("payload", {}).get("payment", {}).get("entity") or {}
+    if entity and "id" in entity:
+        amt = quantize_inr(float(entity.get("amount", 0)) / 100.0) # Razorpay amounts in paise
+        pay_id = entity.get("id")
+        if not db.query(Payment).filter(Payment.id == pay_id).first():
+            db.add(Payment(
+                id=pay_id,
+                order_id=entity.get("order_id", "order_live_001"),
+                lineage_id=f"LIN-{(pay_id)[-6:]}",
+                amount=amt,
+                currency=entity.get("currency", "INR"),
+                status=entity.get("status", "captured"),
+                method=entity.get("method", "upi"),
+                fee=quantize_inr(float(entity.get("fee", 0)) / 100.0),
+                tax=quantize_inr(float(entity.get("tax", 0)) / 100.0),
+                created_at=datetime.datetime.now(datetime.UTC)
+            ))
+            db.commit()
+            
+    return {
+        "status": "PROCESSED",
+        "event_id": event_id,
+        "event_type": event_type,
+        "auth_status": reason,
+        "deduplication_enforced": True
+    }
 
 @app.post("/api/seed")
 def seed_dataset(num_payments: int = Query(500, ge=50, le=2000), db: Session = Depends(get_db)):
@@ -163,7 +253,7 @@ def get_overview(db: Session = Depends(get_db)):
     actual_bank_credit_total = db.query(func.sum(BankTransaction.credit)).scalar() or 0.0
     
     open_exceptions = [e for e in exceptions if e.status == "OPEN" and e.exception_type != "DUPLICATE_ENTRY"]
-    unexplained_diff = round(sum(e.difference for e in open_exceptions), 2)
+    unexplained_diff = quantize_inr(sum(e.difference for e in open_exceptions))
     
     auto_resolved = sum(1 for e in exceptions if e.status == "RESOLVED")
     human_review = sum(1 for e in exceptions if e.status == "OPEN")
@@ -176,15 +266,15 @@ def get_overview(db: Session = Depends(get_db)):
         ex_breakdown[e.exception_type] = ex_breakdown.get(e.exception_type, 0) + 1
         sev_breakdown[e.severity] = sev_breakdown.get(e.severity, 0) + 1
         if e.status == "OPEN":
-            why_by_type[e.exception_type] = round(why_by_type.get(e.exception_type, 0.0) + e.difference, 2)
+            why_by_type[e.exception_type] = quantize_inr(why_by_type.get(e.exception_type, 0.0) + e.difference)
 
     return {
         "total_transactions": total_settlements + db.query(BankTransaction).count(),
         "matched_count": matched_count,
         "exceptions_count": exceptions_count,
         "match_rate": match_rate,
-        "expected_settlement_total": round(expected_settlement_total, 2),
-        "actual_bank_credit_total": round(actual_bank_credit_total, 2),
+        "expected_settlement_total": quantize_inr(expected_settlement_total),
+        "actual_bank_credit_total": quantize_inr(actual_bank_credit_total),
         "unexplained_difference": unexplained_diff,
         "auto_resolved_count": auto_resolved,
         "human_review_required": human_review,

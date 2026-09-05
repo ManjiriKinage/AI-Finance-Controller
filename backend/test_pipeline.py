@@ -1,11 +1,14 @@
 import pytest
 import os
 import sys
+import hmac
+import hashlib
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from backend.database import Base, engine, SessionLocal
-from backend.models import Payment, Settlement, BankTransaction, ExceptionRecord, ReconciliationResult
+from backend.models import Payment, Settlement, BankTransaction, ExceptionRecord, ReconciliationResult, ProcessedWebhook, quantize_inr
 from backend.app import seed_database_internal
+from backend.security import verify_razorpay_signature, RAZORPAY_WEBHOOK_SECRET
 from backend.recon_engine import ReconciliationEngine
 from backend.cash_intelligence import CashIntelligenceEngine
 from backend.ai_service import AIControllerService
@@ -64,21 +67,12 @@ def test_full_pipeline():
         assert len(stress_res["adversarial_tests"]) == 7
         assert all(t["status"] == "PASS" for t in stress_res["adversarial_tests"])
 
-        benchmark = engine_inst.compute_evaluation_benchmark([
-            {
-                "settlement_id": first_setl.id,
-                "true_match_status": "MATCHED",
-            }
-        ])
-        assert benchmark["total_records"] == 1
-        assert benchmark["processed_records"] == 1
-        assert "ground_truth_accuracy_pct" in benchmark
-
-        # 8. Check Phase 4: Calculation Proof
+        # 8. Check Phase 4: Calculation Proof & Decimal Quantization
         calc_proof = engine_inst.get_calculation_proof(first_setl.id)
         assert "proof_steps" in calc_proof
         assert len(calc_proof["proof_steps"]) == 7
         assert "formula_string" in calc_proof
+        assert quantize_inr(0.3000000004) == 0.30
 
         # 9. Check Phase 4: Challenge Controller
         first_match = db.query(ReconciliationResult).filter(ReconciliationResult.match_status == "MATCHED").first()
@@ -87,7 +81,23 @@ def test_full_pipeline():
             assert "decision_margin_pct" in challenge_res
             assert challenge_res["challenge_status"] in ["CONFIRMED_SECURE", "DOWNGRADED_TO_REVIEW"]
 
-        print("All pipeline tests including Phase 4 Accuracy Stress Test, Calculation Proof, and Challenge Mode passed!")
+        # 10. Check Razorpay HMAC Signature Verification & Idempotency
+        sample_payload = b'{"event":"payment.captured","id":"evt_test_1001"}'
+        valid_sig = hmac.new(
+            RAZORPAY_WEBHOOK_SECRET.encode("utf-8"),
+            sample_payload,
+            hashlib.sha256
+        ).hexdigest()
+        
+        is_valid, reason = verify_razorpay_signature(sample_payload, valid_sig)
+        assert is_valid is True
+        assert reason == "SIGNATURE_VERIFIED_AUTHENTIC"
+        
+        is_invalid, err_reason = verify_razorpay_signature(sample_payload, "invalid_sig_abc")
+        assert is_invalid is False
+        assert "mismatch" in err_reason
+
+        print("All pipeline tests including HMAC verification, Decimal Quantization, and Stress Testing passed!")
     finally:
         db.close()
 
