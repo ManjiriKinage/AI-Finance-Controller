@@ -146,6 +146,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/")
+def root():
+    return {
+        "service": "Autonomous Finance Cloud (ReconOps) API",
+        "status": "online",
+        "health": "/api/health",
+        "docs": "/docs"
+    }
+
 @app.get("/api/health")
 def health_check():
     return {
