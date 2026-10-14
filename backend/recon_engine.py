@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from backend.models import (
     Settlement, BankTransaction, ReconciliationResult, ExceptionRecord, Payment, SettlementItem, AuditLog
 )
+from backend.money import TOLERANCE_PAISE, paise_to_rupees, rupees_to_paise, format_inr
 from backend.synthetic_data import generate_synthetic_dataset
 
 class ReconciliationEngine:
@@ -50,7 +51,7 @@ class ReconciliationEngine:
             clean_utr = setl.utr.strip().upper()
             if clean_utr in bank_utr_index:
                 btx = bank_utr_index[clean_utr]
-                diff = round(abs(setl.amount - btx.credit), 2)
+                diff = abs(setl.amount - btx.credit)
                 
                 # Contradiction Gate: Check debit vs credit reversal or negative amounts
                 has_contradiction = (btx.credit == 0 and btx.debit > 0) or (setl.amount <= 0)
@@ -59,14 +60,14 @@ class ReconciliationEngine:
                     score = 60.0
                     status = "MISMATCH"
                     reason = "Contradiction Gate: Inflow reversed to debit"
-                elif diff <= 0.05:
+                elif diff <= TOLERANCE_PAISE:
                     score = 100.0
                     status = "MATCHED"
                     reason = f"Exact UTR match ({clean_utr}) with ₹0.00 difference (Margin: 38.6% >= 5.0%)"
                 else:
                     score = max(50.0, 100.0 - (diff / setl.amount * 100))
                     status = "MISMATCH"
-                    reason = f"Exact UTR match ({clean_utr}) but net amount differs by ₹{diff:,.2f}"
+                    reason = f"Exact UTR match ({clean_utr}) but net amount differs by ₹{paise_to_rupees(diff):,.2f}"
 
                 recon_records.append({
                     "settlement_id": setl.id,
@@ -83,25 +84,25 @@ class ReconciliationEngine:
                 matched_settlement_ids.add(setl.id)
                 matched_bank_tx_ids.add(btx.id)
 
-                if diff > 0.05 or has_contradiction:
+                if diff > TOLERANCE_PAISE or has_contradiction:
                     exceptions.append({
                         "id": f"EX-{len(exceptions)+1:04d}",
                         "lineage_id": setl.lineage_id or f"LIN-{clean_utr[-6:]}",
                         "settlement_id": setl.id,
                         "bank_transaction_id": btx.id,
                         "exception_type": "AMOUNT_MISMATCH" if not has_contradiction else "REVERSED_ENTRY",
-                        "severity": "HIGH" if diff > 1000.0 else "MEDIUM",
+                        "severity": "HIGH" if diff > 100000 else "MEDIUM",
                         "expected_amount": setl.amount,
                         "actual_amount": btx.credit,
                         "difference": diff,
                         "confidence": 92.0,
                         "ai_explanation": {
-                            "summary": f"UTR matched ({clean_utr}) but bank credited ₹{btx.credit:,.2f} vs expected ₹{setl.amount:,.2f}.",
+                            "summary": f"UTR matched ({clean_utr}) but bank credited ₹{paise_to_rupees(btx.credit):,.2f} vs expected ₹{paise_to_rupees(setl.amount):,.2f}.",
                             "likely_cause": "Unlisted gateway fee deduction or dispute reserve holdback.",
                             "confidence": 92.0,
                             "evidence": [
                                 {"factor": "UTR Reference", "status": "VERIFIED", "detail": f"Exact match for {clean_utr}"},
-                                {"factor": "Amount Variance", "status": "DISCREPANCY", "detail": f"Difference of ₹{diff:,.2f}"}
+                                {"factor": "Amount Variance", "status": "DISCREPANCY", "detail": f"Difference of ₹{paise_to_rupees(diff):,.2f}"}
                             ],
                             "recommended_action": "Review Razorpay settlement adjustment breakdown.",
                             "auto_resolvable": False
@@ -128,21 +129,21 @@ class ReconciliationEngine:
                 second_best_score = candidates[1][1] if len(candidates) > 1 else 0
                 margin = round(best_score - second_best_score, 1)
 
-                diff = round(abs(setl.amount - best_btx.credit), 2)
+                diff = abs(setl.amount - best_btx.credit)
                 
                 # Unified 5.0% Candidate Margin Policy
                 if margin < self.MIN_SAFETY_MARGIN and second_best_score >= 75:
                     status = "UNRESOLVED"
                     score = 75.0
                     reason = f"Ambiguous candidates (Best: {best_score}%, 2nd: {second_best_score}%, Margin: {margin}% < {self.MIN_SAFETY_MARGIN}%)"
-                elif best_score >= self.AUTO_MATCH_THRESHOLD and diff <= 0.05 and margin >= self.MIN_SAFETY_MARGIN:
+                elif best_score >= self.AUTO_MATCH_THRESHOLD and diff <= TOLERANCE_PAISE and margin >= self.MIN_SAFETY_MARGIN:
                     status = "MATCHED"
                     score = best_score
                     reason = f"Fuzzy narration match ({best_score}%, Margin: {margin}%) with ₹0.00 difference"
                 else:
                     status = "MISMATCH"
                     score = best_score * 0.9
-                    reason = f"Fuzzy narration match ({best_score}%, Margin: {margin}%) with ₹{diff:,.2f} variance"
+                    reason = f"Fuzzy narration match ({best_score}%, Margin: {margin}%) with ₹{paise_to_rupees(diff):,.2f} variance"
 
                 recon_records.append({
                     "settlement_id": setl.id,
@@ -160,7 +161,7 @@ class ReconciliationEngine:
                 matched_bank_tx_ids.add(best_btx.id)
                 unmatched_bank_txs = [b for b in unmatched_bank_txs if b.id != best_btx.id]
 
-                if diff > 0.05 or status == "UNRESOLVED":
+                if diff > TOLERANCE_PAISE or status == "UNRESOLVED":
                     exceptions.append({
                         "id": f"EX-{len(exceptions)+1:04d}",
                         "lineage_id": setl.lineage_id or f"LIN-{clean_utr[-6:]}",
@@ -197,7 +198,7 @@ class ReconciliationEngine:
                     "match_score": 0.0,
                     "matching_method": "NONE",
                     "expected_amount": setl.amount,
-                    "actual_amount": 0.0,
+                    "actual_amount": 0,
                     "difference": setl.amount,
                     "reason": "Missing bank statement credit corresponding to Razorpay settlement"
                 })
@@ -209,11 +210,11 @@ class ReconciliationEngine:
                     "exception_type": "MISSING_SETTLEMENT",
                     "severity": "HIGH",
                     "expected_amount": setl.amount,
-                    "actual_amount": 0.0,
+                    "actual_amount": 0,
                     "difference": setl.amount,
                     "confidence": 95.0,
                     "ai_explanation": {
-                        "summary": f"Settlement {setl.id} (UTR: {setl.utr}) of ₹{setl.amount:,.2f} is missing from Axis Bank statement.",
+                        "summary": f"Settlement {setl.id} (UTR: {setl.utr}) of ₹{paise_to_rupees(setl.amount):,.2f} is missing from Axis Bank statement.",
                         "likely_cause": "Bank holiday clearing lag or gateway settlement processing delay (T+2 window).",
                         "confidence": 95.0,
                         "evidence": [
@@ -236,7 +237,7 @@ class ReconciliationEngine:
                     "match_status": "UNRESOLVED",
                     "match_score": 0.0,
                     "matching_method": "NONE",
-                    "expected_amount": 0.0,
+                    "expected_amount": 0,
                     "actual_amount": btx.credit,
                     "difference": btx.credit,
                     "reason": f"Direct bank credit '{btx.description}' without corresponding Razorpay settlement header"
@@ -248,16 +249,16 @@ class ReconciliationEngine:
                     "bank_transaction_id": btx.id,
                     "exception_type": "UNKNOWN_BANK_ENTRY",
                     "severity": "MEDIUM",
-                    "expected_amount": 0.0,
+                    "expected_amount": 0,
                     "actual_amount": btx.credit,
                     "difference": btx.credit,
                     "confidence": 88.0,
                     "ai_explanation": {
-                        "summary": f"Direct bank inflow of ₹{btx.credit:,.2f} found without settlement record.",
+                        "summary": f"Direct bank inflow of ₹{paise_to_rupees(btx.credit):,.2f} found without settlement record.",
                         "likely_cause": "Direct client NEFT/RTGS wire transfer or offline refund return.",
                         "confidence": 88.0,
                         "evidence": [
-                            {"factor": "Bank Credit", "status": "VERIFIED", "detail": f"Credit ₹{btx.credit:,.2f} posted"},
+                            {"factor": "Bank Credit", "status": "VERIFIED", "detail": f"Credit ₹{paise_to_rupees(btx.credit):,.2f} posted"},
                             {"factor": "Gateway Linkage", "status": "DISCREPANCY", "detail": "No settlement batch associated"}
                         ],
                         "recommended_action": "Manually map to customer invoice or account 2020-DIRECT-INFLOWS.",
@@ -585,42 +586,50 @@ class ReconciliationEngine:
         payment_ids = [it.payment_id for it in items if it.payment_id]
         payments = self.db.query(Payment).filter(Payment.id.in_(payment_ids)).all() if payment_ids else []
 
-        gross = setl.gross_amount if setl.gross_amount > 0 else sum(p.amount for p in payments) or setl.amount * 1.023
-        fee = setl.fees if setl.fees > 0 else sum(p.fee for p in payments) or setl.amount * 0.02
-        tax = setl.tax if setl.tax > 0 else sum(p.tax for p in payments) or fee * 0.18
+        gross = setl.gross_amount if setl.gross_amount > 0 else sum(p.amount for p in payments) or int(round(setl.amount * 1.0236))
+        fee = setl.fees if setl.fees > 0 else sum(p.fee for p in payments) or int(round(setl.amount * 0.02))
+        tax = setl.tax if setl.tax > 0 else sum(p.tax for p in payments) or int(round(fee * 0.18))
         refunds = sum(p.amount_refunded for p in payments)
-        expected_net = round(gross - refunds - fee - tax, 2)
+        expected_net = gross - refunds - fee - tax
 
         bank_tx = self.db.query(BankTransaction).filter(
             (BankTransaction.bank_utr == setl.utr) | 
             (BankTransaction.description.like(f"%{setl.utr}%"))
         ).first()
-        actual_bank = bank_tx.credit if bank_tx else 0.0
-        variance = round(abs(expected_net - actual_bank), 2)
+        actual_bank = bank_tx.credit if bank_tx else 0
+        variance = abs(expected_net - actual_bank)
+
+        gross_r = paise_to_rupees(gross)
+        refunds_r = paise_to_rupees(refunds)
+        fee_r = paise_to_rupees(fee)
+        tax_r = paise_to_rupees(tax)
+        expected_net_r = paise_to_rupees(expected_net)
+        actual_bank_r = paise_to_rupees(actual_bank)
+        variance_r = paise_to_rupees(variance)
 
         proof_steps = [
-            {"line_item": "Gross Customer Inflow", "operator": "ADD", "amount": gross, "explanation": f"Sum of {len(payments) or 1} customer checkout transactions"},
-            {"line_item": "Customer Refunds Deducted", "operator": "SUBTRACT", "amount": -refunds, "explanation": f"Settlement reserve deductions for returns"},
-            {"line_item": "Razorpay MDR Gateway Fee", "operator": "SUBTRACT", "amount": -fee, "explanation": "2.00% Standard Domestic Card/UPI interchange fee"},
-            {"line_item": "Goods & Services Tax (18%)", "operator": "SUBTRACT", "amount": -tax, "explanation": "18.00% GST levied on payment gateway fee"},
-            {"line_item": "Expected Net Settlement", "operator": "EQUALS", "amount": expected_net, "explanation": "Net funds expected in merchant nodal bank account"},
-            {"line_item": "Actual Axis Bank Statement Credit", "operator": "EQUALS", "amount": actual_bank, "explanation": f"Transaction {bank_tx.id if bank_tx else 'NONE'} statement credit"},
-            {"line_item": "Unreconciled Variance", "operator": "VARIANCE", "amount": variance, "explanation": "Fee rounding discrepancy / pending clearance lag" if variance > 0 else "✓ Zero Variance (100% Match)"}
+            {"line_item": "Gross Customer Inflow", "operator": "ADD", "amount": gross_r, "explanation": f"Sum of {len(payments) or 1} customer checkout transactions"},
+            {"line_item": "Customer Refunds Deducted", "operator": "SUBTRACT", "amount": -refunds_r, "explanation": f"Settlement reserve deductions for returns"},
+            {"line_item": "Razorpay MDR Gateway Fee", "operator": "SUBTRACT", "amount": -fee_r, "explanation": "2.00% Standard Domestic Card/UPI interchange fee"},
+            {"line_item": "Goods & Services Tax (18%)", "operator": "SUBTRACT", "amount": -tax_r, "explanation": "18.00% GST levied on payment gateway fee"},
+            {"line_item": "Expected Net Settlement", "operator": "EQUALS", "amount": expected_net_r, "explanation": "Net funds expected in merchant nodal bank account"},
+            {"line_item": "Actual Axis Bank Statement Credit", "operator": "EQUALS", "amount": actual_bank_r, "explanation": f"Transaction {bank_tx.id if bank_tx else 'NONE'} statement credit"},
+            {"line_item": "Unreconciled Variance", "operator": "VARIANCE", "amount": variance_r, "explanation": "Fee rounding discrepancy / pending clearance lag" if variance > 0 else "✓ Zero Variance (100% Match)"}
         ]
 
-        formula = f"Gross (₹{gross:,.2f}) - Refunds (₹{refunds:,.2f}) - MDR Fee (₹{fee:,.2f}) - GST (₹{tax:,.2f}) = Net (₹{expected_net:,.2f}) <=> Bank (₹{actual_bank:,.2f})"
+        formula = f"Gross (₹{gross_r:,.2f}) - Refunds (₹{refunds_r:,.2f}) - MDR Fee (₹{fee_r:,.2f}) - GST (₹{tax_r:,.2f}) = Net (₹{expected_net_r:,.2f}) <=> Bank (₹{actual_bank_r:,.2f})"
 
         return {
             "settlement_id": setl.id,
             "lineage_id": lineage_id,
-            "gross_amount": round(gross, 2),
-            "refunds_amount": round(refunds, 2),
-            "mdr_fee": round(fee, 2),
-            "gst_tax": round(tax, 2),
-            "expected_net_settlement": round(expected_net, 2),
-            "actual_bank_credit": round(actual_bank, 2),
-            "variance": round(variance, 2),
-            "attribution_reason": "Fee/Tax rounding offset" if 0 < variance < 50 else "Delayed bank posting" if variance > 0 else "Exact Match",
+            "gross_amount": gross_r,
+            "refunds_amount": refunds_r,
+            "mdr_fee": fee_r,
+            "gst_tax": tax_r,
+            "expected_net_settlement": expected_net_r,
+            "actual_bank_credit": actual_bank_r,
+            "variance": variance_r,
+            "attribution_reason": "Fee/Tax rounding offset" if 0 < variance < 5000 else "Delayed bank posting" if variance > 0 else "Exact Match",
             "proof_steps": proof_steps,
             "formula_string": formula
         }

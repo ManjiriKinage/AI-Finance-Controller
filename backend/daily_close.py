@@ -6,6 +6,7 @@ from sqlalchemy import func
 from backend.models import (
     Settlement, BankTransaction, Payment, SettlementItem, ExceptionRecord, ReconciliationResult, AuditLog
 )
+from backend.money import paise_to_rupees, format_inr, TOLERANCE_PAISE
 from backend.schemas import EvidenceItem
 
 class DailyCloseEngine:
@@ -28,34 +29,34 @@ class DailyCloseEngine:
 
         all_payments = self.db.query(Payment).all()
         payments_count = len(all_payments)
-        payments_gross = sum(p.amount for p in all_payments) if all_payments else 2471800.0
+        payments_gross_paise = sum(p.amount for p in all_payments) if all_payments else 247180000
 
         all_settlements = self.db.query(Settlement).all()
-        expected_settlement_total = sum(s.amount for s in all_settlements) if all_settlements else 2415000.0
+        expected_settlement_total_paise = sum(s.amount for s in all_settlements) if all_settlements else 241500000
 
         all_bank_txs = self.db.query(BankTransaction).all()
-        bank_received_total = sum(b.credit for b in all_bank_txs) if all_bank_txs else 2354800.0
+        bank_received_total_paise = sum(b.credit for b in all_bank_txs) if all_bank_txs else 235480000
 
         matched_results = self.db.query(ReconciliationResult).filter(
             ReconciliationResult.match_status.in_(["MATCHED", "AUTO_RESOLVED"])
         ).all()
-        verified_cash_total = sum(r.actual_amount for r in matched_results) if matched_results else 2121500.0
+        verified_cash_total_paise = sum(r.actual_amount for r in matched_results) if matched_results else 212150000
 
         open_exceptions = self.db.query(ExceptionRecord).filter(
             ExceptionRecord.status == "OPEN",
             ExceptionRecord.exception_type != "DUPLICATE_ENTRY"
         ).all()
         
-        cash_at_risk_total = round(sum(e.difference for e in open_exceptions), 2)
+        cash_at_risk_total_paise = sum(e.difference for e in open_exceptions)
         total_exceptions_count = len(self.db.query(ExceptionRecord).all())
         critical_exceptions_count = len([e for e in open_exceptions if e.severity == "HIGH"])
 
         match_rate_pct = round((len(matched_results) / max(1, len(all_settlements))) * 100, 2)
         
-        raw_readiness = (1.0 - (cash_at_risk_total / max(1.0, bank_received_total))) * 100
+        raw_readiness = (1.0 - (cash_at_risk_total_paise / max(1.0, float(bank_received_total_paise)))) * 100
         close_readiness_pct = round(min(100.0, max(60.0, raw_readiness)), 1)
 
-        close_decision = "READY_TO_CLOSE" if (cash_at_risk_total < 10000.0 and critical_exceptions_count == 0) else "CANNOT_CLOSE"
+        close_decision = "READY_TO_CLOSE" if (cash_at_risk_total_paise < 1000000 and critical_exceptions_count == 0) else "CANNOT_CLOSE"
 
         # Automated Risk Breakdown
         risk_categories = {
@@ -91,7 +92,7 @@ class DailyCloseEngine:
                 risk_breakdown.append({
                     "category": cat_key,
                     "label": val["label"],
-                    "amount": round(val["amount"], 2),
+                    "amount": paise_to_rupees(val["amount"]),
                     "count": val["count"],
                     "impact_pct": round((val["amount"] / total_risk_sum) * 100, 1),
                     "description": val["desc"],
@@ -103,13 +104,14 @@ class DailyCloseEngine:
         # Critical Blockers List
         critical_blockers = []
         for e in sorted(open_exceptions, key=lambda x: -x.difference)[:5]:
+            diff_r = paise_to_rupees(e.difference)
             critical_blockers.append({
                 "exception_id": e.id,
                 "settlement_id": e.settlement_id,
                 "type": e.exception_type,
-                "amount_at_risk": round(e.difference, 2),
+                "amount_at_risk": diff_r,
                 "confidence": e.confidence,
-                "summary": e.ai_explanation.get("summary") if e.ai_explanation else f"{e.exception_type} of ₹{e.difference:,.2f}",
+                "summary": e.ai_explanation.get("summary") if e.ai_explanation else f"{e.exception_type} of ₹{diff_r:,.2f}",
                 "recommendation": e.recommended_action or "Review settlement adjustment with payment gateway."
             })
 
@@ -117,33 +119,35 @@ class DailyCloseEngine:
         fastest_routes = []
         if open_exceptions:
             top_ex = open_exceptions[0]
-            rem_risk_a = max(0.0, cash_at_risk_total - top_ex.difference)
-            readiness_a = round(min(100.0, (1.0 - (rem_risk_a / max(1.0, bank_received_total))) * 100), 1)
+            rem_risk_a = max(0, cash_at_risk_total_paise - top_ex.difference)
+            readiness_a = round(min(100.0, (1.0 - (rem_risk_a / max(1.0, float(bank_received_total_paise)))) * 100), 1)
+            diff_a_r = paise_to_rupees(top_ex.difference)
             fastest_routes.append({
                 "option_id": "OPTION_A",
                 "title": f"Option A: Resolve #{top_ex.id} (Quick Win)",
-                "description": f"Clears ₹{top_ex.difference:,.2f} in exposure, advancing readiness by +{round(readiness_a - close_readiness_pct, 1)}%.",
+                "description": f"Clears ₹{diff_a_r:,.2f} in exposure, advancing readiness by +{round(readiness_a - close_readiness_pct, 1)}%.",
                 "exceptions_to_resolve": [top_ex.id],
-                "risk_cleared_amount": top_ex.difference,
+                "risk_cleared_amount": diff_a_r,
                 "resulting_readiness_pct": readiness_a,
-                "resulting_close_decision": "READY_TO_CLOSE" if rem_risk_a < 10000 else "CANNOT_CLOSE",
-                "is_fully_closed": rem_risk_a < 10000
+                "resulting_close_decision": "READY_TO_CLOSE" if rem_risk_a < 1000000 else "CANNOT_CLOSE",
+                "is_fully_closed": rem_risk_a < 1000000
             })
 
             if len(open_exceptions) >= 2:
                 top_2 = open_exceptions[:2]
                 cleared_b = sum(e.difference for e in top_2)
-                rem_risk_b = max(0.0, cash_at_risk_total - cleared_b)
-                readiness_b = round(min(100.0, (1.0 - (rem_risk_b / max(1.0, bank_received_total))) * 100), 1)
+                rem_risk_b = max(0, cash_at_risk_total_paise - cleared_b)
+                readiness_b = round(min(100.0, (1.0 - (rem_risk_b / max(1.0, float(bank_received_total_paise)))) * 100), 1)
+                cleared_b_r = paise_to_rupees(cleared_b)
                 fastest_routes.append({
                     "option_id": "OPTION_B",
                     "title": f"Option B: Resolve Top 2 Blockers ({top_2[0].id} + {top_2[1].id})",
-                    "description": f"Clears ₹{cleared_b:,.2f} in exposure across top 2 critical blockers.",
+                    "description": f"Clears ₹{cleared_b_r:,.2f} in exposure across top 2 critical blockers.",
                     "exceptions_to_resolve": [e.id for e in top_2],
-                    "risk_cleared_amount": cleared_b,
+                    "risk_cleared_amount": cleared_b_r,
                     "resulting_readiness_pct": readiness_b,
-                    "resulting_close_decision": "READY_TO_CLOSE" if rem_risk_b < 10000 else "CANNOT_CLOSE",
-                    "is_fully_closed": rem_risk_b < 10000
+                    "resulting_close_decision": "READY_TO_CLOSE" if rem_risk_b < 1000000 else "CANNOT_CLOSE",
+                    "is_fully_closed": rem_risk_b < 1000000
                 })
 
             fastest_routes.append({
@@ -151,7 +155,7 @@ class DailyCloseEngine:
                 "title": "Option C: Complete 100% Financial Close",
                 "description": f"Approve adjustments on all {len(open_exceptions)} items to unlock formal CFO signoff.",
                 "exceptions_to_resolve": [e.id for e in open_exceptions],
-                "risk_cleared_amount": cash_at_risk_total,
+                "risk_cleared_amount": paise_to_rupees(cash_at_risk_total_paise),
                 "resulting_readiness_pct": 100.0,
                 "resulting_close_decision": "READY_TO_CLOSE",
                 "is_fully_closed": True
@@ -162,28 +166,31 @@ class DailyCloseEngine:
         if open_exceptions and open_exceptions[0].settlement_id:
             top_critical_trail = self.get_money_trail(open_exceptions[0].settlement_id)
 
+        cash_at_risk_r = paise_to_rupees(cash_at_risk_total_paise)
+        verified_cash_r = paise_to_rupees(verified_cash_total_paise)
+
         if close_decision == "CANNOT_CLOSE":
-            close_summary = f"CANNOT FULLY CLOSE — ₹{cash_at_risk_total:,.2f} remains financially exposed across {len(open_exceptions)} critical blockers."
+            close_summary = f"CANNOT FULLY CLOSE — ₹{cash_at_risk_r:,.2f} remains financially exposed across {len(open_exceptions)} critical blockers."
             ai_commentary = (
-                f"Daily close determination is CANNOT CLOSE. While ₹{verified_cash_total:,.2f} is verified in bank statements, "
-                f"₹{cash_at_risk_total:,.2f} remains at risk. The primary exposure driver is {risk_breakdown[0]['label'] if risk_breakdown else 'Delayed Settlements'} "
+                f"Daily close determination is CANNOT CLOSE. While ₹{verified_cash_r:,.2f} is verified in bank statements, "
+                f"₹{cash_at_risk_r:,.2f} remains at risk. The primary exposure driver is {risk_breakdown[0]['label'] if risk_breakdown else 'Delayed Settlements'} "
                 f"accounting for {risk_breakdown[0]['impact_pct'] if risk_breakdown else 0}% of unclosed funds."
             )
         else:
             close_summary = "READY TO CLOSE — 100% of settlement batches and bank credits are reconciled."
             ai_commentary = (
-                f"All {payments_count} transactions and ₹{verified_cash_total:,.2f} in settlement credits have been fully verified. "
+                f"All {payments_count} transactions and ₹{verified_cash_r:,.2f} in settlement credits have been fully verified. "
                 f"Zero critical variances remain. Books are cleared for general ledger closure."
             )
 
         return {
             "cycle_date": today_str,
             "payments_processed_count": payments_count,
-            "payments_processed_gross": round(payments_gross, 2),
-            "expected_settlement_total": round(expected_settlement_total, 2),
-            "bank_received_total": round(bank_received_total, 2),
-            "verified_cash_total": round(verified_cash_total, 2),
-            "cash_at_risk_total": round(cash_at_risk_total, 2),
+            "payments_processed_gross": paise_to_rupees(payments_gross_paise),
+            "expected_settlement_total": paise_to_rupees(expected_settlement_total_paise),
+            "bank_received_total": paise_to_rupees(bank_received_total_paise),
+            "verified_cash_total": verified_cash_r,
+            "cash_at_risk_total": cash_at_risk_r,
             "match_rate_pct": match_rate_pct,
             "total_exceptions_count": total_exceptions_count,
             "critical_exceptions_count": critical_exceptions_count,
@@ -214,21 +221,30 @@ class DailyCloseEngine:
         payment_ids = [it.payment_id for it in items if it.payment_id]
         payments = self.db.query(Payment).filter(Payment.id.in_(payment_ids)).all() if payment_ids else []
 
-        gross_amt = setl.gross_amount if setl.gross_amount > 0 else sum(p.amount for p in payments) or setl.amount * 1.023
-        fee_amt = setl.fees if setl.fees > 0 else sum(p.fee for p in payments) or setl.amount * 0.02
-        tax_amt = setl.tax if setl.tax > 0 else sum(p.tax for p in payments) or fee_amt * 0.18
+        gross_amt = setl.gross_amount if setl.gross_amount > 0 else sum(p.amount for p in payments) or int(round(setl.amount * 1.0236))
+        fee_amt = setl.fees if setl.fees > 0 else sum(p.fee for p in payments) or int(round(setl.amount * 0.02))
+        tax_amt = setl.tax if setl.tax > 0 else sum(p.tax for p in payments) or int(round(fee_amt * 0.18))
         refund_amt = sum(p.amount_refunded for p in payments)
-        expected_net = round(gross_amt - fee_amt - tax_amt - refund_amt, 2)
+        expected_net = gross_amt - fee_amt - tax_amt - refund_amt
 
         bank_tx = self.db.query(BankTransaction).filter(
             (BankTransaction.bank_utr == setl.utr) | 
             (BankTransaction.description.like(f"%{setl.utr}%"))
         ).first()
 
-        actual_bank_credit = bank_tx.credit if bank_tx else 0.0
-        variance = round(abs(expected_net - actual_bank_credit), 2) if bank_tx else expected_net
+        actual_bank_credit = bank_tx.credit if bank_tx else 0
+        variance = abs(expected_net - actual_bank_credit) if bank_tx else expected_net
 
         ex = self.db.query(ExceptionRecord).filter(ExceptionRecord.settlement_id == setl.id).first()
+
+        gross_r = paise_to_rupees(gross_amt)
+        fee_r = paise_to_rupees(fee_amt)
+        tax_r = paise_to_rupees(tax_amt)
+        refund_r = paise_to_rupees(refund_amt)
+        expected_net_r = paise_to_rupees(expected_net)
+        actual_bank_r = paise_to_rupees(actual_bank_credit)
+        variance_r = paise_to_rupees(variance)
+        setl_amt_r = paise_to_rupees(setl.amount)
 
         # Build 5 Nodes
         nodes = [
@@ -237,7 +253,7 @@ class DailyCloseEngine:
                 "step": "CUSTOMER",
                 "title": "Customer Inflow",
                 "subtitle": f"{len(payments) or 1} Order(s) Authorized via UPI/Cards",
-                "amount": round(gross_amt, 2),
+                "amount": gross_r,
                 "status": "VERIFIED",
                 "badge_label": "✓ Authorized",
                 "metadata": {"payment_count": len(payments), "lineage_id": lineage_id}
@@ -246,18 +262,18 @@ class DailyCloseEngine:
                 "id": "node_payment",
                 "step": "PAYMENT",
                 "title": "Razorpay Fee & GST Math",
-                "subtitle": f"MDR Fee -₹{fee_amt:,.2f} | 18% GST -₹{tax_amt:,.2f}",
-                "amount": round(gross_amt, 2),
+                "subtitle": f"MDR Fee -₹{fee_r:,.2f} | 18% GST -₹{tax_r:,.2f}",
+                "amount": gross_r,
                 "status": "VERIFIED" if (fee_amt > 0) else "WARNING",
                 "badge_label": "✓ Fee Audited",
-                "metadata": {"fee": fee_amt, "tax": tax_amt, "refunds": refund_amt}
+                "metadata": {"fee": fee_r, "tax": tax_r, "refunds": refund_r}
             },
             {
                 "id": "node_settlement",
                 "step": "SETTLEMENT",
                 "title": f"Settlement Batch ({setl.id})",
                 "subtitle": f"UTR: {setl.utr} • Net Payout",
-                "amount": round(setl.amount, 2),
+                "amount": setl_amt_r,
                 "status": "VERIFIED" if setl.status == "processed" else "WARNING",
                 "badge_label": f"✓ {setl.status.upper()}",
                 "metadata": {"utr": setl.utr, "status": setl.status}
@@ -267,17 +283,17 @@ class DailyCloseEngine:
                 "step": "BANK",
                 "title": "Axis Bank Account (*7849)",
                 "subtitle": f"Statement Credit Tx: {bank_tx.id if bank_tx else 'NONE'}",
-                "amount": round(actual_bank_credit, 2),
+                "amount": actual_bank_r,
                 "status": "VERIFIED" if (bank_tx and variance == 0) else "MISMATCH" if bank_tx else "UNRESOLVED",
                 "badge_label": "✓ Credited" if (bank_tx and variance == 0) else "⚠ Variance" if bank_tx else "? Missing Credit",
-                "metadata": {"bank_tx_id": bank_tx.id if bank_tx else None, "credit": actual_bank_credit}
+                "metadata": {"bank_tx_id": bank_tx.id if bank_tx else None, "credit": actual_bank_r}
             },
             {
                 "id": "node_ledger",
                 "step": "LEDGER",
                 "title": "General Ledger Status",
                 "subtitle": f"Account 1010 - Gateway Clearing",
-                "amount": round(actual_bank_credit if bank_tx else expected_net, 2),
+                "amount": actual_bank_r if bank_tx else expected_net_r,
                 "status": "VERIFIED" if (bank_tx and variance == 0) else "WARNING",
                 "badge_label": "✓ Reconciled" if (bank_tx and variance == 0) else "⚠ Variance Flagged",
                 "metadata": {"account": "1010-GATEWAY-CLEARING", "lineage_id": lineage_id}
@@ -286,15 +302,15 @@ class DailyCloseEngine:
 
         evidence_checklist = [
             EvidenceItem(factor="UTR Reference Match", status="VERIFIED" if bank_tx else "DISCREPANCY", detail=f"UTR '{setl.utr}' matched in bank statement description" if bank_tx else f"UTR '{setl.utr}' not located in bank credits"),
-            EvidenceItem(factor="Net Amount Equality", status="VERIFIED" if variance == 0 else "WARNING", detail=f"Expected ₹{expected_net:,.2f} vs Actual ₹{actual_bank_credit:,.2f} (Variance: ₹{variance:,.2f})"),
-            EvidenceItem(factor="Fee & GST Breakdown", status="VERIFIED", detail=f"Gross ₹{gross_amt:,.2f} - Fee ₹{fee_amt:,.2f} - GST ₹{tax_amt:,.2f} = ₹{expected_net:,.2f}"),
+            EvidenceItem(factor="Net Amount Equality", status="VERIFIED" if variance == 0 else "WARNING", detail=f"Expected ₹{expected_net_r:,.2f} vs Actual ₹{actual_bank_r:,.2f} (Variance: ₹{variance_r:,.2f})"),
+            EvidenceItem(factor="Fee & GST Breakdown", status="VERIFIED", detail=f"Gross ₹{gross_r:,.2f} - Fee ₹{fee_r:,.2f} - GST ₹{tax_r:,.2f} = ₹{expected_net_r:,.2f}"),
             EvidenceItem(factor="Clearing Window", status="VERIFIED", detail="Settlement cleared within standard T+1 window")
         ]
 
         ai_verdict = (
             f"Money Trail for {setl.id} (Lineage {lineage_id}) is fully verified end-to-end with ₹0.00 variance."
             if (bank_tx and variance == 0) else
-            f"Money Trail flagged with ₹{variance:,.2f} variance between Razorpay expected net (₹{expected_net:,.2f}) and Axis Bank credit (₹{actual_bank_credit:,.2f})."
+            f"Money Trail flagged with ₹{variance_r:,.2f} variance between Razorpay expected net (₹{expected_net_r:,.2f}) and Axis Bank credit (₹{actual_bank_r:,.2f})."
         )
 
         return {
@@ -302,13 +318,13 @@ class DailyCloseEngine:
             "lineage_id": lineage_id,
             "utr": setl.utr,
             "status": "VERIFIED" if (bank_tx and variance == 0) else "MISMATCH",
-            "gross_amount": round(gross_amt, 2),
-            "fees": round(fee_amt, 2),
-            "tax": round(tax_amt, 2),
-            "refunds": round(refund_amt, 2),
-            "expected_net": round(expected_net, 2),
-            "actual_bank_credit": round(actual_bank_credit, 2),
-            "variance": round(variance, 2),
+            "gross_amount": gross_r,
+            "fees": fee_r,
+            "tax": tax_r,
+            "refunds": refund_r,
+            "expected_net": expected_net_r,
+            "actual_bank_credit": actual_bank_r,
+            "variance": variance_r,
             "payment_count": len(payments),
             "nodes": nodes,
             "evidence_checklist": evidence_checklist,

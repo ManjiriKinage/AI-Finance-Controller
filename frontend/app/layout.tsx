@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AI Finance Controller | Automated Multi-Source Reconciliation & Cash Intelligence",
-  description: "Senior Fintech Operations Engine: Deterministic 3-Way Reconciliation, Evidence-Backed AI Exception Reasoning, and Cash Intelligence Forecasting."
+  title: "RECONOPS | Institutional Financial Operations Control",
+  description: "Institutional Bank Operations: Multi-Source 3-Way Settlement Reconciliation, Real-Time Exception Diagnostics, and Cash Intelligence."
 };
 
 export default function RootLayout({
@@ -12,9 +12,19 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
-      <body className="bg-slate-950 text-slate-100 antialiased min-h-screen">
-        {children}
+    <html lang="en">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;500;600;700;800&family=Hanken+Grotesk:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body className="bg-[#F5F6F3] text-slate-900 antialiased min-h-screen selection:bg-indigo-100 selection:text-indigo-900 flex flex-col font-sans">
+        <div className="flex-1 flex flex-col">
+          {children}
+        </div>
       </body>
     </html>
   );

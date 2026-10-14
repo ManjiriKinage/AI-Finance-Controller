@@ -4,12 +4,6 @@ import React, { useEffect, useState } from "react";
 import {
   X,
   Sparkles,
-  ArrowRight,
-  TrendingUp,
-  ShieldCheck,
-  AlertTriangle,
-  CheckCircle2,
-  Lock,
   RefreshCw,
   Zap,
   Check
@@ -55,54 +49,57 @@ export function WhatIfModal({ exceptionId, isOpen, onClose, onApplyResolution }:
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fade-in">
-      <div className="relative w-full max-w-4xl rounded-3xl bg-slate-900 border border-slate-700/80 p-6 sm:p-8 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col justify-between">
-        
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-fade-in">
+      <div className="relative w-full max-w-4xl rounded-2xl bg-white border border-[#E4E6E0] p-6 sm:p-8 shadow-none overflow-hidden max-h-[92vh] flex flex-col justify-between space-y-6">
+
         {/* Header */}
-        <div className="flex items-start justify-between pb-4 border-b border-slate-800">
+        <div className="flex items-start justify-between pb-4 border-b border-[#E4E6E0]">
           <div className="flex items-center space-x-3">
-            <div className="p-3 rounded-2xl bg-gradient-to-tr from-amber-500 to-indigo-600 text-white shadow-lg shadow-amber-500/20">
-              <Zap className="w-6 h-6" />
+            <div className="p-2.5 rounded-xl bg-amber-50 text-amber-700 border border-amber-200">
+              <Zap className="w-5 h-5 stroke-[1.75]" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">What-If Resolution Simulator</h2>
-                <span className="px-2.5 py-0.5 text-xs font-mono font-bold bg-slate-800 text-amber-400 border border-amber-500/30 rounded-full">
+                <h2 className="text-xl sm:text-2xl font-heading font-bold text-slate-900 tracking-tight">
+                  What-If Resolution Simulator
+                </h2>
+                <span className="px-2.5 py-0.5 text-xs font-mono font-medium bg-[#F5F6F3] text-slate-700 border border-[#E4E6E0] rounded-lg">
                   {exceptionId}
                 </span>
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-500 mt-0.5">
                 Simulate instant financial impact of resolving this exception on cash-at-risk and close readiness
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all"
+            aria-label="Close"
+            className="w-10 h-10 flex items-center justify-center rounded-xl bg-white border border-[#E4E6E0] text-slate-500 hover:text-slate-900 transition-colors cursor-pointer"
           >
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5 stroke-[1.75]" />
           </button>
         </div>
 
         {loading ? (
           <div className="py-24 flex flex-col items-center justify-center space-y-3">
-            <RefreshCw className="w-8 h-8 text-amber-400 animate-spin" />
-            <p className="text-sm text-slate-400">Computing before-and-after financial balance sheet delta...</p>
+            <RefreshCw className="w-8 h-8 text-[#3730A3] animate-spin" />
+            <p className="text-sm text-slate-500">Computing before-and-after financial balance sheet delta...</p>
           </div>
         ) : data ? (
-          <div className="my-6 space-y-6 overflow-y-auto pr-1">
-            
+          <div className="my-2 space-y-6 overflow-y-auto pr-1">
+
             {/* Target Exception Header */}
-            <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 flex flex-wrap items-center justify-between gap-4">
+            <div className="p-4 rounded-xl bg-[#F5F6F3] border border-[#E4E6E0] flex flex-wrap items-center justify-between gap-4">
               <div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Target Discrepancy</span>
-                <h3 className="text-base font-bold text-white mt-0.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Target Discrepancy</span>
+                <h3 className="text-base font-heading font-bold text-slate-900 mt-0.5">
                   {data.exception_type.replace(/_/g, " ")} {data.target_settlement_id ? `(${data.target_settlement_id})` : ""}
                 </h3>
               </div>
               <div className="text-right">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Exposure Amount</span>
-                <p className="text-xl font-bold text-rose-400">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Exposure Amount</span>
+                <p className="text-xl font-heading font-bold text-rose-700 tabular-nums">
                   ₹{data.exception_amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                 </p>
               </div>
@@ -110,60 +107,63 @@ export function WhatIfModal({ exceptionId, isOpen, onClose, onApplyResolution }:
 
             {/* Before vs After Side-by-Side Comparison */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              
+
               {/* BEFORE STATE CARD */}
-              <div className="p-5 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-4">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Current Position (Before)</span>
-                  <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/30">
+              <div className="p-5 rounded-xl bg-[#F5F6F3] border border-[#E4E6E0] space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-[#E4E6E0]">
+                  <span className="text-xs font-heading font-bold uppercase tracking-wider text-slate-700">
+                    Current Position (Before)
+                  </span>
+                  <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-full bg-rose-50 text-rose-700 border border-rose-200">
                     {data.before_state.close_decision.replace(/_/g, " ")}
                   </span>
                 </div>
 
-                <div className="space-y-3 text-xs">
-                  <div className="flex justify-between p-2 rounded-lg bg-slate-900/60 border border-slate-850">
-                    <span className="text-slate-400">Verified Cash:</span>
-                    <span className="font-bold text-white">₹{(data.before_state.verified_cash / 100000).toFixed(2)}L</span>
+                <div className="space-y-2.5 text-xs">
+                  <div className="flex justify-between p-2.5 rounded-lg bg-white border border-[#E4E6E0]">
+                    <span className="text-slate-600">Verified Cash:</span>
+                    <span className="font-bold text-slate-900 tabular-nums">₹{(data.before_state.verified_cash / 100000).toFixed(2)}L</span>
                   </div>
-                  <div className="flex justify-between p-2 rounded-lg bg-slate-900/60 border border-slate-850">
-                    <span className="text-slate-400">Cash At Risk:</span>
-                    <span className="font-bold text-rose-400">₹{data.before_state.cash_at_risk.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                  <div className="flex justify-between p-2.5 rounded-lg bg-white border border-[#E4E6E0]">
+                    <span className="text-slate-600">Cash At Risk:</span>
+                    <span className="font-bold text-rose-700 tabular-nums">₹{data.before_state.cash_at_risk.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                   </div>
-                  <div className="flex justify-between p-2 rounded-lg bg-slate-900/60 border border-slate-850">
-                    <span className="text-slate-400">Close Readiness:</span>
-                    <span className="font-bold text-amber-400">{data.before_state.close_readiness_pct}%</span>
+                  <div className="flex justify-between p-2.5 rounded-lg bg-white border border-[#E4E6E0]">
+                    <span className="text-slate-600">Close Readiness:</span>
+                    <span className="font-bold text-amber-700 tabular-nums">{data.before_state.close_readiness_pct}%</span>
                   </div>
                 </div>
               </div>
 
               {/* AFTER STATE CARD (SIMULATED) */}
-              <div className="p-5 rounded-2xl bg-gradient-to-br from-indigo-950/40 via-slate-900 to-emerald-950/30 border border-emerald-500/40 space-y-4 shadow-lg">
-                <div className="flex items-center justify-between pb-2 border-b border-emerald-900/60">
-                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">Simulated Outcome (After)</span>
-                  <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded-full border ${
-                    data.is_close_unlocked
-                      ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40 animate-pulse"
-                      : "bg-indigo-500/20 text-indigo-400 border-indigo-500/40"
-                  }`}>
+              <div className="p-5 rounded-xl bg-emerald-50/40 border border-emerald-200 space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-emerald-200">
+                  <span className="text-xs font-heading font-bold uppercase tracking-wider text-emerald-800">
+                    Simulated Outcome (After)
+                  </span>
+                  <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded-full border ${data.is_close_unlocked
+                      ? "bg-emerald-100 text-emerald-800 border-emerald-300 font-bold"
+                      : "bg-indigo-50 text-[#3730A3] border-indigo-200 font-bold"
+                    }`}>
                     {data.after_state.close_decision.replace(/_/g, " ")}
                   </span>
                 </div>
 
-                <div className="space-y-3 text-xs">
-                  <div className="flex justify-between p-2 rounded-lg bg-slate-900/80 border border-slate-800">
-                    <span className="text-slate-300">Verified Cash:</span>
-                    <span className="font-bold text-emerald-400">₹{(data.after_state.verified_cash / 100000).toFixed(2)}L</span>
+                <div className="space-y-2.5 text-xs">
+                  <div className="flex justify-between p-2.5 rounded-lg bg-white border border-emerald-200">
+                    <span className="text-slate-700">Verified Cash:</span>
+                    <span className="font-bold text-emerald-800 tabular-nums">₹{(data.after_state.verified_cash / 100000).toFixed(2)}L</span>
                   </div>
-                  <div className="flex justify-between p-2 rounded-lg bg-slate-900/80 border border-slate-800">
-                    <span className="text-slate-300">Cash At Risk:</span>
-                    <span className="font-bold text-emerald-400">
+                  <div className="flex justify-between p-2.5 rounded-lg bg-white border border-emerald-200">
+                    <span className="text-slate-700">Cash At Risk:</span>
+                    <span className="font-bold text-emerald-800 tabular-nums">
                       ₹{data.after_state.cash_at_risk.toLocaleString("en-IN", { minimumFractionDigits: 2 })}{" "}
-                      <span className="text-[10px] text-emerald-400/90 font-normal">(-{data.risk_reduction_pct}%)</span>
+                      <span className="text-[10px] text-emerald-700 font-medium">(-{data.risk_reduction_pct}%)</span>
                     </span>
                   </div>
-                  <div className="flex justify-between p-2 rounded-lg bg-slate-900/80 border border-slate-800">
-                    <span className="text-slate-300">Close Readiness:</span>
-                    <span className="font-bold text-emerald-400">
+                  <div className="flex justify-between p-2.5 rounded-lg bg-white border border-emerald-200">
+                    <span className="text-slate-700">Close Readiness:</span>
+                    <span className="font-bold text-emerald-800 tabular-nums">
                       {data.after_state.close_readiness_pct}% (+{data.readiness_delta_pct}%)
                     </span>
                   </div>
@@ -173,11 +173,13 @@ export function WhatIfModal({ exceptionId, isOpen, onClose, onApplyResolution }:
             </div>
 
             {/* AI Impact Callout */}
-            <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-950/30 via-slate-900 to-emerald-950/30 border border-amber-700/30 flex items-start space-x-3.5">
-              <Sparkles className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+            <div className="p-4 rounded-xl bg-indigo-50/60 border border-indigo-100 flex items-start space-x-3.5">
+              <Sparkles className="w-5 h-5 text-[#3730A3] flex-shrink-0 mt-0.5" />
               <div>
-                <h4 className="text-xs font-bold uppercase tracking-wider text-amber-300">CFO Decision Impact</h4>
-                <p className="mt-1 text-xs text-slate-200 leading-relaxed">{data.ai_impact_narrative}</p>
+                <h4 className="text-xs font-heading font-bold uppercase tracking-wider text-[#3730A3]">
+                  CFO Decision Impact
+                </h4>
+                <p className="mt-1 text-xs text-slate-800 leading-relaxed">{data.ai_impact_narrative}</p>
               </div>
             </div>
 
@@ -185,10 +187,10 @@ export function WhatIfModal({ exceptionId, isOpen, onClose, onApplyResolution }:
         ) : null}
 
         {/* Footer Actions */}
-        <div className="flex items-center justify-between pt-4 border-t border-slate-800">
+        <div className="flex items-center justify-between pt-4 border-t border-[#E4E6E0]">
           <button
             onClick={onClose}
-            className="px-5 py-2 text-xs font-semibold rounded-xl bg-slate-800 hover:bg-slate-700 text-white transition-all"
+            className="min-h-[44px] px-5 py-2 text-xs font-semibold rounded-xl bg-white border border-[#D9DCD4] text-slate-700 hover:bg-[#F1F2EE] transition-all cursor-pointer"
           >
             Cancel
           </button>
@@ -196,7 +198,7 @@ export function WhatIfModal({ exceptionId, isOpen, onClose, onApplyResolution }:
           <button
             onClick={handleApplyResolution}
             disabled={applying || !data}
-            className="flex items-center space-x-2 px-6 py-2.5 text-xs font-bold rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white shadow-lg shadow-emerald-600/30 transition-all disabled:opacity-50 cursor-pointer"
+            className="min-h-[44px] flex items-center space-x-2 px-6 py-2.5 text-xs font-semibold rounded-xl bg-[#3730A3] hover:bg-[#312E81] text-white transition-all disabled:opacity-50 cursor-pointer"
           >
             <Check className="w-4 h-4" />
             <span>{applying ? "Applying..." : "Apply Resolution & Update Close"}</span>

@@ -2,17 +2,9 @@
 
 import React, { useEffect, useState } from "react";
 import {
-  Activity,
   Zap,
-  ArrowDownRight,
-  ArrowUpRight,
-  CheckCircle2,
-  AlertTriangle,
-  Clock,
-  Radio,
-  RefreshCw,
-  PlusCircle,
-  FlaskConical
+  FlaskConical,
+  Radio
 } from "lucide-react";
 import { api, LiveWebhookEvent } from "@/lib/api";
 
@@ -67,111 +59,107 @@ export function LiveEventStreamWidget({ onEventProcessed }: LiveEventStreamWidge
   };
 
   return (
-    <div className="rounded-2xl bg-slate-900/70 border border-slate-800 p-5 shadow-xs flex flex-col space-y-4">
-      
+    <div className="bg-white border border-[#E5E7EB] rounded-2xl p-5 space-y-4">
+
       {/* Header */}
-      <div className="flex items-center justify-between pb-3 border-b border-slate-800/80">
-        <div className="flex items-center space-x-2.5">
-          <div className="flex h-2 w-2 relative">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-          </div>
-          <div>
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-200">
+      <div className="flex items-center justify-between pb-3 border-b border-[#E5E7EB]">
+        <div>
+          <div className="flex items-center space-x-2">
+            <Radio className="w-4 h-4 stroke-[1.5] text-[#3730A3]" />
+            <h3 className="font-heading font-bold text-xs uppercase tracking-wider text-slate-900">
               Webhook Event Stream
             </h3>
-            <span className="text-[10px] text-slate-500 font-mono">gateway.razorpay.com/v1/webhooks</span>
           </div>
+          <span className="text-[11px] text-slate-500 font-mono">gateway.razorpay.com/v1/webhooks</span>
         </div>
 
-        <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-slate-800/80 text-slate-400 border border-slate-700/60">
+        <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
           Live Ingestion
         </span>
       </div>
 
       {/* Scenario Sandbox Trigger */}
-      <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/90 flex flex-col space-y-2">
+      <div className="p-4 rounded-xl bg-[#F5F6F3] border border-[#E5E7EB] space-y-3">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-medium text-slate-300 flex items-center space-x-1.5">
-            <FlaskConical className="w-3.5 h-3.5 text-indigo-400" />
+          <span className="text-xs font-heading font-bold text-slate-800 flex items-center space-x-1.5">
+            <FlaskConical className="w-4 h-4 stroke-[1.5] text-[#3730A3]" />
             <span>Scenario Sandbox</span>
           </span>
-          <span className="text-[10px] text-slate-500">Adversarial Mock</span>
+          <span className="text-[11px] text-slate-500">Clearing Simulation</span>
         </div>
 
         <button
           onClick={handleInjectAnomaly}
           disabled={isInjecting}
-          className="w-full py-2 px-3 text-xs font-medium rounded-lg bg-slate-800/80 hover:bg-slate-800 text-rose-300 border border-rose-500/30 hover:border-rose-500/50 transition-all cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-50"
+          className="min-h-[44px] w-full py-2 px-3 text-xs font-semibold rounded-xl bg-white hover:bg-rose-50 text-[#DC2626] border border-rose-200 transition-colors cursor-pointer flex items-center justify-center space-x-1.5 disabled:opacity-50"
         >
-          <Zap className="w-3.5 h-3.5 text-rose-400" />
+          <Zap className="w-4 h-4 stroke-[1.5] text-[#DC2626]" />
           <span>{isInjecting ? "Injecting Payload..." : "Simulate Settlement Delay (+₹26.4K)"}</span>
         </button>
       </div>
 
       {/* Quick Event Simulation Controls */}
-      <div className="flex items-center space-x-2">
+      <div className="grid grid-cols-3 gap-2">
         <button
           onClick={() => handleSimulateEvent("payment.captured")}
           disabled={isSimulating}
-          className="flex-1 py-1.5 px-2 text-[10px] font-medium rounded-lg bg-slate-800/50 hover:bg-slate-800 text-slate-300 border border-slate-700/50 transition-all cursor-pointer text-center disabled:opacity-50"
+          className="min-h-[44px] py-2 px-2 text-[11px] font-semibold rounded-xl bg-white hover:bg-[#F5F6F3] text-slate-700 border border-[#E5E7EB] transition-colors cursor-pointer text-center disabled:opacity-50"
         >
-          + Payment Event
+          + Payment
         </button>
         <button
           onClick={() => handleSimulateEvent("settlement.processed")}
           disabled={isSimulating}
-          className="flex-1 py-1.5 px-2 text-[10px] font-medium rounded-lg bg-slate-800/50 hover:bg-slate-800 text-slate-300 border border-slate-700/50 transition-all cursor-pointer text-center disabled:opacity-50"
+          className="min-h-[44px] py-2 px-2 text-[11px] font-semibold rounded-xl bg-white hover:bg-[#F5F6F3] text-slate-700 border border-[#E5E7EB] transition-colors cursor-pointer text-center disabled:opacity-50"
         >
-          + Settlement Batch
+          + Settlement
         </button>
         <button
           onClick={() => handleSimulateEvent("refund.created")}
           disabled={isSimulating}
-          className="flex-1 py-1.5 px-2 text-[10px] font-medium rounded-lg bg-slate-800/50 hover:bg-slate-800 text-slate-300 border border-slate-700/50 transition-all cursor-pointer text-center disabled:opacity-50"
+          className="min-h-[44px] py-2 px-2 text-[11px] font-semibold rounded-xl bg-white hover:bg-[#F5F6F3] text-slate-700 border border-[#E5E7EB] transition-colors cursor-pointer text-center disabled:opacity-50"
         >
-          + Refund Debit
+          + Refund
         </button>
       </div>
 
       {/* Stream List */}
-      <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
+      <div className="space-y-2 max-h-[290px] overflow-y-auto pr-0.5">
         {events.length === 0 ? (
-          <div className="py-8 text-center text-xs text-slate-500">
+          <div className="py-8 text-center text-xs text-slate-400">
             Listening for gateway webhook signatures...
           </div>
         ) : (
-          events.slice(0, 7).map((ev) => (
+          events.slice(0, 6).map((ev) => (
             <div
               key={ev.event_id}
-              className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80 hover:border-slate-700 transition-all flex items-center justify-between text-xs space-x-2"
+              className="p-3 rounded-xl bg-[#F5F6F3] border border-[#E5E7EB] flex items-center justify-between text-xs space-x-2"
             >
-              <div className="flex items-center space-x-2 min-w-0">
+              <div className="flex items-center space-x-2.5 min-w-0">
                 <span
-                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                    ev.status === "EXCEPTION_FLAGGED"
-                      ? "bg-rose-400"
+                  className={`w-2 h-2 rounded-full shrink-0 ${ev.status === "EXCEPTION_FLAGGED"
+                      ? "bg-[#DC2626]"
                       : ev.status === "RECONCILED"
-                      ? "bg-emerald-400"
-                      : "bg-indigo-400"
-                  }`}
+                        ? "bg-[#059669]"
+                        : "bg-[#3730A3]"
+                    }`}
                 />
                 <div className="truncate">
                   <div className="flex items-center space-x-1.5">
-                    <span className="font-mono text-[11px] font-medium text-slate-200 truncate">
+                    <span className="font-mono text-[11px] font-bold text-slate-900 truncate">
                       {ev.event_type}
                     </span>
-                    <span className="text-[10px] font-mono text-slate-500">{ev.entity_id}</span>
+                    <span className="text-[10px] font-mono text-slate-400">{ev.entity_id}</span>
                   </div>
                   <p className="text-[10px] text-slate-500 truncate">{ev.narration}</p>
                 </div>
               </div>
 
               <div className="text-right shrink-0">
-                <span className="font-mono font-medium text-slate-200 block text-[11px]">
+                <span className="font-mono font-bold text-slate-900 block text-[11px] tabular-nums">
                   ₹{ev.amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                 </span>
-                <span className="text-[9px] text-slate-500 font-mono">{ev.processing_time_ms}ms</span>
+                <span className="text-[9px] text-slate-400 font-mono tabular-nums">{ev.processing_time_ms}ms</span>
               </div>
             </div>
           ))

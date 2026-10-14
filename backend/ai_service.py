@@ -4,6 +4,7 @@ from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
 
 from backend.models import Settlement, BankTransaction, Payment, ExceptionRecord, ReconciliationResult
+from backend.money import paise_to_rupees
 
 class AIControllerService:
     def __init__(self, db: Session):
@@ -40,12 +41,12 @@ class AIControllerService:
             evidence.append({
                 "factor": "Settlement Calculation",
                 "status": "VERIFIED",
-                "detail": f"Gross ₹{setl.gross_amount:,.2f} - Fee ₹{setl.fees:,.2f} - Tax ₹{setl.tax:,.2f} = ₹{setl.amount:,.2f}"
+                "detail": f"Gross ₹{paise_to_rupees(setl.gross_amount):,.2f} - Fee ₹{paise_to_rupees(setl.fees):,.2f} - Tax ₹{paise_to_rupees(setl.tax):,.2f} = ₹{paise_to_rupees(setl.amount):,.2f}"
             })
             evidence.append({
                 "factor": "Bank Discrepancy",
                 "status": "DISCREPANCY" if ex.difference > 0 else "VERIFIED",
-                "detail": f"Bank received ₹{btx.credit:,.2f} vs Expected ₹{setl.amount:,.2f} (Diff: ₹{ex.difference:,.2f})"
+                "detail": f"Bank received ₹{paise_to_rupees(btx.credit):,.2f} vs Expected ₹{paise_to_rupees(setl.amount):,.2f} (Diff: ₹{paise_to_rupees(ex.difference):,.2f})"
             })
             
             if ex.exception_type == "AMOUNT_MISMATCH":

@@ -2,6 +2,7 @@ import datetime
 from typing import Dict, Any, List
 from sqlalchemy.orm import Session
 from backend.models import BankTransaction, Settlement, Payment, ExceptionRecord
+from backend.money import paise_to_rupees
 
 class CashIntelligenceEngine:
     def __init__(self, db: Session):
@@ -14,24 +15,22 @@ class CashIntelligenceEngine:
         """
         # 1. Current Verified Bank Balance (from latest bank transaction)
         latest_bank_tx = self.db.query(BankTransaction).order_by(BankTransaction.transaction_date.desc()).first()
-        current_liquid_cash = float(latest_bank_tx.balance) if latest_bank_tx and latest_bank_tx.balance else 1420500.00
+        current_liquid_cash = paise_to_rupees(latest_bank_tx.balance) if latest_bank_tx and latest_bank_tx.balance else 1420500.00
         
         # 2. Pending Razorpay Settlements (Processed by gateway, not yet cleared in bank)
         pending_exceptions = self.db.query(ExceptionRecord).filter(
             ExceptionRecord.exception_type.in_(["PENDING_SETTLEMENT", "MISSING_SETTLEMENT"]),
             ExceptionRecord.status == "OPEN"
         ).all()
-        pending_settlements_inflow = sum(e.expected_amount for e in pending_exceptions)
-        if pending_settlements_inflow == 0:
-            pending_settlements_inflow = 285400.00
+        pending_settlements_inflow = paise_to_rupees(sum(e.expected_amount for e in pending_exceptions)) if pending_exceptions else 285400.00
 
         # 3. Expected Receivables from recent captured payments not yet settled
         all_payments = self.db.query(Payment).all()
-        recent_gross = sum(p.amount for p in all_payments[-50:]) if all_payments else 180000.0
+        recent_gross = paise_to_rupees(sum(p.amount for p in all_payments[-50:])) if all_payments else 180000.0
         expected_receivables_7d = round(recent_gross * 0.85, 2)
 
         # 4. Expected Outflows (Upcoming operating expenses + estimated refunds)
-        expected_refunds_7d = round(sum(p.amount_refunded for p in all_payments) * 1.2, 2)
+        expected_refunds_7d = round(paise_to_rupees(sum(p.amount_refunded for p in all_payments)) * 1.2, 2)
         if expected_refunds_7d < 5000:
             expected_refunds_7d = 18400.00
             

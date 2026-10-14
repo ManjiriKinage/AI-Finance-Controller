@@ -1,5 +1,16 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+export function formatINR(val?: number | null, compact = false): string {
+  if (val === undefined || val === null || isNaN(val)) return "₹0.00";
+  if (compact && Math.abs(val) >= 10000000) {
+    return `₹${(val / 10000000).toFixed(2)} Cr`;
+  }
+  if (compact && Math.abs(val) >= 100000) {
+    return `₹${(val / 100000).toFixed(2)}L`;
+  }
+  return `₹${val.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 export interface OverviewMetrics {
   total_transactions: number;
   matched_count: number;
@@ -494,6 +505,12 @@ export const api = {
   async runDailyClose(): Promise<DailyCloseResponse> {
     const res = await fetch(`${API_BASE}/api/daily-close/run`, { method: "POST" });
     if (!res.ok) throw new Error("Failed to run daily close");
+    return res.json();
+  },
+
+  async executeDailyClose(actor: string = "FINANCE_CONTROLLER"): Promise<DailyCloseResponse> {
+    const res = await fetch(`${API_BASE}/api/daily-close/execute?actor=${encodeURIComponent(actor)}`, { method: "POST" });
+    if (!res.ok) throw new Error("Failed to execute period close");
     return res.json();
   },
 

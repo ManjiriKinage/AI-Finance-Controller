@@ -5,6 +5,7 @@ from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
 
 from backend.models import Payment, Settlement, BankTransaction, ExceptionRecord
+from backend.money import rupees_to_paise, paise_to_rupees
 from backend.recon_engine import ReconciliationEngine
 
 # In-memory circular buffer for recent live webhook events
@@ -129,14 +130,19 @@ def inject_live_delayed_settlement(db: Session, amount: float = 26400.0) -> Dict
     utr = f"AXIS{random.randint(10000000, 99999999)}"
     lineage_id = f"LIN-{utr[-6:]}"
 
+    amt_paise = rupees_to_paise(amount)
+    fees_paise = rupees_to_paise(amount * 0.02)
+    tax_paise = rupees_to_paise(amount * 0.0036)
+    gross_paise = amt_paise + fees_paise + tax_paise
+
     s = Settlement(
         id=setl_id,
         merchant_id="mer_001",
         lineage_id=lineage_id,
-        amount=amount,
-        gross_amount=round(amount * 1.025, 2),
-        fees=round(amount * 0.02, 2),
-        tax=round(amount * 0.0036, 2),
+        amount=amt_paise,
+        gross_amount=gross_paise,
+        fees=fees_paise,
+        tax=tax_paise,
         utr=utr,
         status="processed",
         created_at=now
@@ -155,9 +161,9 @@ def inject_live_delayed_settlement(db: Session, amount: float = 26400.0) -> Dict
         settlement_id=setl_id,
         exception_type="MISSING_SETTLEMENT",
         severity="HIGH",
-        expected_amount=amount,
-        actual_amount=0.0,
-        difference=amount,
+        expected_amount=amt_paise,
+        actual_amount=0,
+        difference=amt_paise,
         confidence=94.5,
         status="OPEN",
         ai_explanation={

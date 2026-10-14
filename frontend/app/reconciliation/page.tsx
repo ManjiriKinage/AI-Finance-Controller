@@ -1,11 +1,25 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { Sidebar } from "@/components/Sidebar";
 import { Navbar } from "@/components/Navbar";
 import { MoneyTrailModal } from "@/components/MoneyTrailModal";
 import { DailyCloseModal } from "@/components/DailyCloseModal";
 import { DecisionGateModal } from "@/components/DecisionGateModal";
-import { Layers, Search, Filter, CheckCircle2, AlertTriangle, Clock, XCircle, ArrowRight, Eye, Scale, Calculator, ArrowUpRight } from "lucide-react";
+import {
+  Layers,
+  Search,
+  Filter,
+  CheckCircle2,
+  AlertTriangle,
+  Clock,
+  XCircle,
+  ArrowRight,
+  Eye,
+  Scale,
+  Calculator,
+  ArrowUpRight
+} from "lucide-react";
 import { api, ReconciliationItem, DailyCloseResponse } from "@/lib/api";
 
 export default function ReconciliationPage() {
@@ -63,171 +77,206 @@ export default function ReconciliationPage() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col font-sans">
-      <Navbar
-        onReconcileTrigger={loadRecon}
-        onOpenDailyClose={() => setIsDailyCloseOpen(true)}
-      />
+    <div className="min-h-screen bg-[#F5F6F3] flex flex-col lg:flex-row font-sans pb-20 lg:pb-0">
+      
+      {/* Light Sidebar (Desktop ~1440px fluid) */}
+      <Sidebar />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 max-w-full lg:max-w-[1180px] xl:max-w-[1240px]">
         
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-semibold text-white tracking-tight flex items-center space-x-2">
-              <Layers className="w-5 h-5 text-indigo-400" />
-              <span>Reconciliation Ledger</span>
-            </h1>
-            <p className="text-xs text-slate-400 mt-1">
-              Multi-source 3-way matching: Payment Gateway Inflows ⟷ Settlement Batches ⟷ Bank Statement Credits
-            </p>
-          </div>
+        {/* Mobile Header (< 1024px) */}
+        <Navbar
+          onReconcileTrigger={loadRecon}
+          onOpenDailyClose={() => setIsDailyCloseOpen(true)}
+        />
 
-          {/* Search & Status Filter Chips */}
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Filter by UTR, ID, or Reference..."
-                className="pl-8 pr-4 py-1.5 text-xs bg-slate-900 border border-slate-800 rounded-lg text-slate-200 placeholder-slate-500 focus:outline-hidden focus:border-slate-700 w-48 sm:w-64"
-              />
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-6">
+
+          {/* Institutional Header Card */}
+          <div className="bg-white border border-[#E5E7EB] rounded-2xl p-5 sm:p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h1 className="font-heading font-bold text-xl sm:text-2xl text-slate-900 tracking-tight flex items-center space-x-2">
+                  <Layers className="w-5 h-5 text-[#3730A3] stroke-[1.5]" />
+                  <span>Reconciliation Ledger</span>
+                </h1>
+                <p className="text-xs text-slate-500 mt-1">
+                  Multi-source 3-way matching: Payment Gateway Inflows ⟷ Settlement Batches ⟷ Bank Statement Credits
+                </p>
+              </div>
+
+              {/* Status Chips */}
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1.5 rounded-lg text-xs font-mono font-medium bg-[#F5F6F3] text-slate-700 border border-[#E5E7EB]">
+                  Total Records: <strong className="ml-1 text-slate-900 font-bold">{records.length}</strong>
+                </span>
+                <span className="px-3 py-1.5 rounded-lg text-xs font-mono font-medium bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  Matched: <strong className="ml-1 font-bold">{records.filter(r => r.match_status === "MATCHED").length}</strong>
+                </span>
+              </div>
             </div>
 
-            <div className="flex items-center space-x-1 bg-slate-900/80 p-1 rounded-lg border border-slate-800 text-xs">
-              {["ALL", "MATCHED", "MISMATCH", "UNRESOLVED"].map((st) => (
-                <button
-                  key={st}
-                  onClick={() => setFilterStatus(st)}
-                  className={`px-2.5 py-1 rounded-md font-medium text-xs transition-all cursor-pointer ${
-                    filterStatus === st
-                      ? "bg-slate-800 text-white border border-slate-700/60 shadow-xs"
-                      : "text-slate-400 hover:text-slate-200"
-                  }`}
-                >
-                  {st === "ALL" ? "All Entries" : st === "MATCHED" ? "Matched" : st === "MISMATCH" ? "Mismatches" : "Unresolved"}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
+            {/* Search & Filter Toolbar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-[#E5E7EB]">
+              <div className="relative flex-1 min-w-[240px] max-w-md">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3.5 stroke-[1.5]" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Filter by UTR, Settlement ID, or Method..."
+                  className="w-full pl-9 pr-4 min-h-[44px] text-xs bg-[#F5F6F3] border border-[#E5E7EB] rounded-xl text-slate-900 placeholder-slate-400 focus:outline-hidden focus:border-[#3730A3]"
+                />
+              </div>
 
-        {/* Compact Institutional Table */}
-        <div className="rounded-2xl bg-slate-900/70 border border-slate-800 overflow-hidden shadow-xs">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-950/90 border-b border-slate-800 text-[11px] text-slate-400 uppercase font-mono tracking-wider">
-                <tr>
-                  <th className="py-3 px-4">Settlement Batch</th>
-                  <th className="py-3 px-4">Bank Reference</th>
-                  <th className="py-3 px-4">Match Status</th>
-                  <th className="py-3 px-4">Score</th>
-                  <th className="py-3 px-4 text-right">Expected Net</th>
-                  <th className="py-3 px-4 text-right">Bank Credit</th>
-                  <th className="py-3 px-4 text-right">Variance</th>
-                  <th className="py-3 px-4 text-center">Match Logic</th>
-                  <th className="py-3 px-4 text-center">Audit Trail</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60 text-slate-300">
-                {filtered.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-800/30 transition-colors">
-                    
-                    {/* Settlement ID */}
-                    <td className="py-3 px-4 font-mono font-medium text-white">
-                      {item.settlement_id || <span className="text-slate-500 italic">Direct Bank Inflow</span>}
-                    </td>
-
-                    {/* Bank Tx ID */}
-                    <td className="py-3 px-4 font-mono text-slate-400">
-                      {item.bank_transaction_id || <span className="text-rose-400 italic">Uncredited</span>}
-                    </td>
-
-                    {/* Subtle Minimalist Status Indicator */}
-                    <td className="py-3 px-4">
-                      {item.match_status === "MATCHED" ? (
-                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                          Matched
-                        </span>
-                      ) : item.match_status === "MISMATCH" ? (
-                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                          <span className="h-1.5 w-1.5 rounded-full bg-rose-400" />
-                          Mismatch
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-800 text-slate-400 border border-slate-700/60">
-                          <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
-                          Unresolved
-                        </span>
-                      )}
-                    </td>
-
-                    {/* Score */}
-                    <td className="py-3 px-4 font-mono font-medium">
-                      <span className={item.match_score >= 95 ? "text-emerald-400" : item.match_score >= 80 ? "text-amber-400" : "text-rose-400"}>
-                        {item.match_score}%
-                      </span>
-                    </td>
-
-                    {/* Expected Net */}
-                    <td className="py-3 px-4 font-mono font-semibold text-white text-right">
-                      ₹{item.expected_amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                    </td>
-
-                    {/* Actual Bank Credit */}
-                    <td className="py-3 px-4 font-mono font-semibold text-slate-200 text-right">
-                      ₹{item.actual_amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                    </td>
-
-                    {/* Variance */}
-                    <td className="py-3 px-4 text-right">
-                      {item.difference > 0 ? (
-                        <span className="font-mono font-bold text-rose-400">
-                          -₹{item.difference.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                        </span>
-                      ) : (
-                        <span className="font-mono text-emerald-400">₹0.00</span>
-                      )}
-                    </td>
-
-                    {/* Match Logic */}
-                    <td className="py-3 px-4 text-center">
-                      <button
-                        onClick={() => handleOpenDecisionGate(item.id)}
-                        className="inline-flex items-center space-x-1 px-2 py-1 text-[11px] font-medium rounded-md bg-slate-800/80 hover:bg-slate-800 text-slate-300 border border-slate-700/50 transition-colors cursor-pointer"
-                        title="Audit Deterministic Gates"
-                      >
-                        <Scale className="w-3 h-3 text-slate-400" />
-                        <span>Logic</span>
-                      </button>
-                    </td>
-
-                    {/* Audit Trail */}
-                    <td className="py-3 px-4 text-center">
-                      {item.settlement_id ? (
-                        <button
-                          onClick={() => handleOpenTrail(item.settlement_id)}
-                          className="inline-flex items-center space-x-1 px-2 py-1 text-[11px] font-medium rounded-md bg-indigo-950/60 hover:bg-indigo-900/80 text-indigo-300 border border-indigo-700/40 transition-colors cursor-pointer"
-                        >
-                          <Eye className="w-3 h-3" />
-                          <span>Trace</span>
-                        </button>
-                      ) : (
-                        <span className="text-slate-500 text-[11px] font-mono">{item.matching_method}</span>
-                      )}
-                    </td>
-
-                  </tr>
+              <div className="flex items-center space-x-1.5">
+                {["ALL", "MATCHED", "MISMATCH", "UNRESOLVED"].map((st) => (
+                  <button
+                    key={st}
+                    onClick={() => setFilterStatus(st)}
+                    className={`min-h-[44px] px-3.5 py-2 rounded-xl font-medium text-xs transition-colors cursor-pointer ${
+                      filterStatus === st
+                        ? "bg-slate-900 text-white"
+                        : "bg-white text-slate-600 hover:text-slate-900 hover:bg-[#F5F6F3] border border-[#E5E7EB]"
+                    }`}
+                  >
+                    {st === "ALL" ? "All Entries" : st === "MATCHED" ? "Matched" : st === "MISMATCH" ? "Mismatches" : "Unresolved"}
+                  </button>
                 ))}
-              </tbody>
-            </table>
+              </div>
+            </div>
           </div>
-        </div>
 
-      </main>
+          {/* Table Card */}
+          <div className="bg-white border border-[#E5E7EB] rounded-2xl overflow-hidden shadow-none">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-[#F5F6F3] border-b border-[#E5E7EB] text-[11px] text-slate-500 uppercase font-mono tracking-wider">
+                  <tr>
+                    <th className="py-3.5 px-4 font-semibold">Settlement Batch</th>
+                    <th className="py-3.5 px-4 font-semibold">Bank Reference</th>
+                    <th className="py-3.5 px-4 font-semibold">Match Status</th>
+                    <th className="py-3.5 px-4 font-semibold text-center">Score</th>
+                    <th className="py-3.5 px-4 font-semibold text-right">Expected Net</th>
+                    <th className="py-3.5 px-4 font-semibold text-right">Bank Credit</th>
+                    <th className="py-3.5 px-4 font-semibold text-right">Variance</th>
+                    <th className="py-3.5 px-4 font-semibold text-center">Match Logic</th>
+                    <th className="py-3.5 px-4 font-semibold text-center">Audit Trail</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E5E7EB] text-slate-700">
+                  {loading ? (
+                    <tr>
+                      <td colSpan={9} className="py-8 text-center text-xs text-slate-400 font-mono">
+                        Loading reconciliation ledger...
+                      </td>
+                    </tr>
+                  ) : filtered.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="py-8 text-center text-xs text-slate-500">
+                        No transactions found matching criteria.
+                      </td>
+                    </tr>
+                  ) : (
+                    filtered.map((item) => (
+                      <tr key={item.id} className="hover:bg-[#F5F6F3]/60 transition-colors">
+
+                        {/* Settlement ID */}
+                        <td className="py-3.5 px-4 font-mono font-medium text-slate-900">
+                          {item.settlement_id || <span className="text-slate-400 italic">Direct Bank Inflow</span>}
+                        </td>
+
+                        {/* Bank Tx ID */}
+                        <td className="py-3.5 px-4 font-mono text-slate-600">
+                          {item.bank_transaction_id || <span className="text-red-600 italic">Uncredited</span>}
+                        </td>
+
+                        {/* Match Status */}
+                        <td className="py-3.5 px-4">
+                          {item.match_status === "MATCHED" ? (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
+                              Matched
+                            </span>
+                          ) : item.match_status === "MISMATCH" ? (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium bg-red-50 text-red-700 border border-red-200">
+                              <span className="h-1.5 w-1.5 rounded-full bg-red-600" />
+                              Mismatch
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                              <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+                              Unresolved
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Score */}
+                        <td className="py-3.5 px-4 font-mono text-center font-medium">
+                          <span className={item.match_score >= 95 ? "text-emerald-700" : item.match_score >= 80 ? "text-amber-700" : "text-red-700"}>
+                            {item.match_score}%
+                          </span>
+                        </td>
+
+                        {/* Expected Net */}
+                        <td className="py-3.5 px-4 font-mono font-medium tabular-nums text-slate-900 text-right">
+                          ₹{item.expected_amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </td>
+
+                        {/* Actual Bank Credit */}
+                        <td className="py-3.5 px-4 font-mono font-medium tabular-nums text-slate-800 text-right">
+                          ₹{item.actual_amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </td>
+
+                        {/* Variance */}
+                        <td className="py-3.5 px-4 text-right">
+                          {item.difference > 0 ? (
+                            <span className="font-mono font-bold tabular-nums text-red-600">
+                              -₹{item.difference.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                            </span>
+                          ) : (
+                            <span className="font-mono tabular-nums text-emerald-700">₹0.00</span>
+                          )}
+                        </td>
+
+                        {/* Match Logic */}
+                        <td className="py-3.5 px-4 text-center">
+                          <button
+                            onClick={() => handleOpenDecisionGate(item.id)}
+                            className="min-h-[36px] inline-flex items-center space-x-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-white hover:bg-[#F5F6F3] text-slate-700 border border-[#E5E7EB] transition-colors cursor-pointer"
+                            title="Audit Deterministic Gates"
+                          >
+                            <Scale className="w-3.5 h-3.5 stroke-[1.5] text-slate-500" />
+                            <span>Logic</span>
+                          </button>
+                        </td>
+
+                        {/* Audit Trail */}
+                        <td className="py-3.5 px-4 text-center">
+                          {item.settlement_id ? (
+                            <button
+                              onClick={() => handleOpenTrail(item.settlement_id)}
+                              className="min-h-[36px] inline-flex items-center space-x-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-white hover:bg-[#F5F6F3] text-[#3730A3] border border-[#E5E7EB] transition-colors cursor-pointer"
+                            >
+                              <Eye className="w-3.5 h-3.5 stroke-[1.5]" />
+                              <span>Trace</span>
+                            </button>
+                          ) : (
+                            <span className="text-slate-400 text-[11px] font-mono">{item.matching_method}</span>
+                          )}
+                        </td>
+
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </main>
+      </div>
 
       <DecisionGateModal
         resultId={selectedGateResultId}

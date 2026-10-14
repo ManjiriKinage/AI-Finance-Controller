@@ -1,18 +1,9 @@
 import datetime
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal
 from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, JSON, Boolean, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 from backend.database import Base
-
-def quantize_inr(amount: float | int | Decimal | None) -> float:
-    """
-    Enforces strict decimal quantization to 2 decimal places (paise)
-    to eliminate floating-point drift (e.g. 0.3000000004).
-    """
-    if amount is None:
-        return 0.0
-    d = Decimal(str(amount))
-    return float(d.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+from backend.money import rupees_to_paise, paise_to_rupees, format_inr, quantize_inr
 
 class Merchant(Base):
     __tablename__ = "merchants"
@@ -29,16 +20,48 @@ class Payment(Base):
     merchant_id = Column(String, ForeignKey("merchants.id"), default="mer_001")
     lineage_id = Column(String, index=True, nullable=True) # LIN-xxxx
     order_id = Column(String, index=True)
-    amount = Column(Float, nullable=False) # In Rupees (Quantized to 2 decimals)
+    amount = Column(Integer, nullable=False) # In Paise (1 INR = 100 paise)
     currency = Column(String, default="INR")
     status = Column(String, default="captured") # captured, failed, refunded
     method = Column(String, default="upi") # upi, card, netbanking, wallet
-    fee = Column(Float, default=0.0)
-    tax = Column(Float, default=0.0) # GST
-    amount_refunded = Column(Float, default=0.0)
+    fee = Column(Integer, default=0) # In Paise
+    tax = Column(Integer, default=0) # In Paise (GST)
+    amount_refunded = Column(Integer, default=0) # In Paise
     customer_email = Column(String, nullable=True)
     captured_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    @property
+    def amount_rupees(self) -> float:
+        return paise_to_rupees(self.amount)
+
+    @property
+    def fee_rupees(self) -> float:
+        return paise_to_rupees(self.fee)
+
+    @property
+    def tax_rupees(self) -> float:
+        return paise_to_rupees(self.tax)
+
+    @property
+    def amount_refunded_rupees(self) -> float:
+        return paise_to_rupees(self.amount_refunded)
+
+    @property
+    def amount_paise(self) -> int:
+        return self.amount
+
+    @property
+    def fee_paise(self) -> int:
+        return self.fee
+
+    @property
+    def tax_paise(self) -> int:
+        return self.tax
+
+    @property
+    def amount_refunded_paise(self) -> int:
+        return self.amount_refunded
 
 class Settlement(Base):
     __tablename__ = "settlements"
@@ -46,14 +69,46 @@ class Settlement(Base):
     id = Column(String, primary_key=True, index=True) # setl_xxx
     merchant_id = Column(String, ForeignKey("merchants.id"), default="mer_001")
     lineage_id = Column(String, index=True, nullable=True) # LIN-xxxx
-    amount = Column(Float, nullable=False) # Net settlement amount
-    gross_amount = Column(Float, default=0.0)
-    fees = Column(Float, default=0.0)
-    tax = Column(Float, default=0.0)
+    amount = Column(Integer, nullable=False) # Net settlement amount in Paise
+    gross_amount = Column(Integer, default=0) # In Paise
+    fees = Column(Integer, default=0) # In Paise
+    tax = Column(Integer, default=0) # In Paise
     utr = Column(String, index=True, nullable=False)
     status = Column(String, default="processed") # processed, created, failed
     settlement_period = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    @property
+    def amount_rupees(self) -> float:
+        return paise_to_rupees(self.amount)
+
+    @property
+    def gross_amount_rupees(self) -> float:
+        return paise_to_rupees(self.gross_amount)
+
+    @property
+    def fees_rupees(self) -> float:
+        return paise_to_rupees(self.fees)
+
+    @property
+    def tax_rupees(self) -> float:
+        return paise_to_rupees(self.tax)
+
+    @property
+    def amount_paise(self) -> int:
+        return self.amount
+
+    @property
+    def gross_amount_paise(self) -> int:
+        return self.gross_amount
+
+    @property
+    def fees_paise(self) -> int:
+        return self.fees
+
+    @property
+    def tax_paise(self) -> int:
+        return self.tax
 
 class SettlementItem(Base):
     __tablename__ = "settlement_items"
@@ -62,9 +117,33 @@ class SettlementItem(Base):
     settlement_id = Column(String, ForeignKey("settlements.id"), index=True)
     payment_id = Column(String, ForeignKey("payments.id"), nullable=True, index=True)
     type = Column(String, default="payment") # payment, refund, adjustment
-    amount = Column(Float, nullable=False)
-    fee = Column(Float, default=0.0)
-    tax = Column(Float, default=0.0)
+    amount = Column(Integer, nullable=False) # In Paise
+    fee = Column(Integer, default=0) # In Paise
+    tax = Column(Integer, default=0) # In Paise
+
+    @property
+    def amount_rupees(self) -> float:
+        return paise_to_rupees(self.amount)
+
+    @property
+    def fee_rupees(self) -> float:
+        return paise_to_rupees(self.fee)
+
+    @property
+    def tax_rupees(self) -> float:
+        return paise_to_rupees(self.tax)
+
+    @property
+    def amount_paise(self) -> int:
+        return self.amount
+
+    @property
+    def fee_paise(self) -> int:
+        return self.fee
+
+    @property
+    def tax_paise(self) -> int:
+        return self.tax
 
 class BankTransaction(Base):
     __tablename__ = "bank_transactions"
@@ -75,10 +154,34 @@ class BankTransaction(Base):
     value_date = Column(DateTime, nullable=False)
     description = Column(String, nullable=False)
     reference = Column(String, index=True, nullable=True)
-    credit = Column(Float, default=0.0)
-    debit = Column(Float, default=0.0)
-    balance = Column(Float, default=0.0)
+    credit = Column(Integer, default=0) # In Paise
+    debit = Column(Integer, default=0) # In Paise
+    balance = Column(Integer, default=0) # In Paise
     bank_utr = Column(String, index=True, nullable=True)
+
+    @property
+    def credit_rupees(self) -> float:
+        return paise_to_rupees(self.credit)
+
+    @property
+    def debit_rupees(self) -> float:
+        return paise_to_rupees(self.debit)
+
+    @property
+    def balance_rupees(self) -> float:
+        return paise_to_rupees(self.balance)
+
+    @property
+    def credit_paise(self) -> int:
+        return self.credit
+
+    @property
+    def debit_paise(self) -> int:
+        return self.debit
+
+    @property
+    def balance_paise(self) -> int:
+        return self.balance
 
 class ReconciliationResult(Base):
     __tablename__ = "reconciliation_results"
@@ -91,11 +194,35 @@ class ReconciliationResult(Base):
     match_status = Column(String, default="UNRESOLVED") # MATCHED, PARTIAL, MISMATCH, UNRESOLVED, AUTO_RESOLVED
     match_score = Column(Float, default=0.0)
     matching_method = Column(String, default="RULE_UTR") # EXACT_UTR, FUZZY_NARRATION, AGGREGATE, AI_ASSISTED, MANUAL
-    expected_amount = Column(Float, default=0.0)
-    actual_amount = Column(Float, default=0.0)
-    difference = Column(Float, default=0.0)
+    expected_amount = Column(Integer, default=0) # In Paise
+    actual_amount = Column(Integer, default=0) # In Paise
+    difference = Column(Integer, default=0) # In Paise
     reason = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    @property
+    def expected_amount_rupees(self) -> float:
+        return paise_to_rupees(self.expected_amount)
+
+    @property
+    def actual_amount_rupees(self) -> float:
+        return paise_to_rupees(self.actual_amount)
+
+    @property
+    def difference_rupees(self) -> float:
+        return paise_to_rupees(self.difference)
+
+    @property
+    def expected_amount_paise(self) -> int:
+        return self.expected_amount
+
+    @property
+    def actual_amount_paise(self) -> int:
+        return self.actual_amount
+
+    @property
+    def difference_paise(self) -> int:
+        return self.difference
 
 class ExceptionRecord(Base):
     __tablename__ = "exceptions"
@@ -107,9 +234,9 @@ class ExceptionRecord(Base):
     bank_transaction_id = Column(String, nullable=True)
     exception_type = Column(String, nullable=False)
     severity = Column(String, default="MEDIUM") # HIGH, MEDIUM, LOW
-    expected_amount = Column(Float, default=0.0)
-    actual_amount = Column(Float, default=0.0)
-    difference = Column(Float, default=0.0)
+    expected_amount = Column(Integer, default=0) # In Paise
+    actual_amount = Column(Integer, default=0) # In Paise
+    difference = Column(Integer, default=0) # In Paise
     confidence = Column(Float, default=0.0)
     ai_explanation = Column(JSON, nullable=True)
     status = Column(String, default="OPEN") # OPEN, UNDER_REVIEW, RESOLVED, REJECTED
@@ -118,6 +245,31 @@ class ExceptionRecord(Base):
     resolved_by = Column(String, nullable=True)
     resolved_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    @property
+    def expected_amount_rupees(self) -> float:
+        return paise_to_rupees(self.expected_amount)
+
+    @property
+    def actual_amount_rupees(self) -> float:
+        return paise_to_rupees(self.actual_amount)
+
+    @property
+    def difference_rupees(self) -> float:
+        return paise_to_rupees(self.difference)
+
+    @property
+    def expected_amount_paise(self) -> int:
+        return self.expected_amount
+
+    @property
+    def actual_amount_paise(self) -> int:
+        return self.actual_amount
+
+    @property
+    def difference_paise(self) -> int:
+        return self.difference
+
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"
@@ -138,14 +290,30 @@ class ForecastSnapshot(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     date = Column(DateTime, default=datetime.datetime.utcnow)
-    current_cash = Column(Float, default=0.0)
-    pending_settlements = Column(Float, default=0.0)
-    expected_receivables_7d = Column(Float, default=0.0)
-    expected_outflows_7d = Column(Float, default=0.0)
-    projected_7d = Column(Float, default=0.0)
-    projected_30d = Column(Float, default=0.0)
+    current_cash = Column(Integer, default=0) # In Paise
+    pending_settlements = Column(Integer, default=0) # In Paise
+    expected_receivables_7d = Column(Integer, default=0) # In Paise
+    expected_outflows_7d = Column(Integer, default=0) # In Paise
+    projected_7d = Column(Integer, default=0) # In Paise
+    projected_30d = Column(Integer, default=0) # In Paise
     confidence_score = Column(Float, default=85.0)
     details = Column(JSON, nullable=True)
+
+    @property
+    def current_cash_rupees(self) -> float:
+        return paise_to_rupees(self.current_cash)
+
+    @property
+    def pending_settlements_rupees(self) -> float:
+        return paise_to_rupees(self.pending_settlements)
+
+    @property
+    def projected_7d_rupees(self) -> float:
+        return paise_to_rupees(self.projected_7d)
+
+    @property
+    def projected_30d_rupees(self) -> float:
+        return paise_to_rupees(self.projected_30d)
 
 class ProcessedWebhook(Base):
     __tablename__ = "processed_webhooks"

@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from backend.models import (
     ExceptionRecord, Settlement, BankTransaction, ReconciliationResult, Payment, SettlementItem
 )
+from backend.money import paise_to_rupees
 from backend.daily_close import DailyCloseEngine
 
 class WhatIfEngine:
@@ -106,6 +107,14 @@ class WhatIfEngine:
         refunds = sum(p.amount_refunded for p in payments)
         lineage_id = ex.lineage_id or f"LIN-{(setl.utr if setl else '928173')[-6:]}"
 
+        gross_r = paise_to_rupees(gross)
+        fees_r = paise_to_rupees(fees)
+        tax_r = paise_to_rupees(tax)
+        refunds_r = paise_to_rupees(refunds)
+        setl_amt_r = paise_to_rupees(setl.amount) if setl else 0.0
+        btx_credit_r = paise_to_rupees(btx.credit) if btx else 0.0
+        diff_r = paise_to_rupees(ex.difference)
+
         now_str = datetime.datetime.now().strftime("%H:%M:%S")
 
         # 7-Step Auditable SQL Forensic Trace
@@ -115,7 +124,7 @@ class WhatIfEngine:
                 "name": "Query Gateway Settlement Record",
                 "status": "SUCCESS" if setl else "WARNING",
                 "timestamp": now_str,
-                "findings": f"Settlement {setl.id if setl else 'N/A'} found with UTR '{setl.utr if setl else 'None'}', status '{setl.status if setl else 'None'}', expected net ₹{setl.amount:,.2f}." if setl else "Direct bank transaction without settlement header.",
+                "findings": f"Settlement {setl.id if setl else 'N/A'} found with UTR '{setl.utr if setl else 'None'}', status '{setl.status if setl else 'None'}', expected net ₹{setl_amt_r:,.2f}." if setl else "Direct bank transaction without settlement header.",
                 "sql_audit": {
                     "table_name": "settlements",
                     "query_string": f"SELECT id, amount, fees, tax, utr, status FROM settlements WHERE id = '{ex.settlement_id}'",
@@ -123,9 +132,9 @@ class WhatIfEngine:
                     "matched_rows_count": 1 if setl else 0,
                     "raw_rows": [{
                         "id": setl.id,
-                        "amount": setl.amount,
-                        "fees": setl.fees,
-                        "tax": setl.tax,
+                        "amount": setl_amt_r,
+                        "fees": fees_r,
+                        "tax": tax_r,
                         "utr": setl.utr,
                         "status": setl.status
                     }] if setl else []
@@ -137,22 +146,22 @@ class WhatIfEngine:
                 "name": "Group Associated Payment Batch",
                 "status": "SUCCESS",
                 "timestamp": now_str,
-                "findings": f"Aggregated {len(payments)} payment item(s) totaling gross revenue ₹{gross:,.2f}.",
+                "findings": f"Aggregated {len(payments)} payment item(s) totaling gross revenue ₹{gross_r:,.2f}.",
                 "sql_audit": {
                     "table_name": "payments JOIN settlement_items",
                     "query_string": f"SELECT p.id, p.amount, p.fee, p.tax FROM payments p JOIN settlement_items si ON p.id = si.payment_id WHERE si.settlement_id = '{setl.id if setl else ''}'",
                     "filter_params": {"settlement_id": setl.id if setl else ""},
                     "matched_rows_count": len(payments),
-                    "raw_rows": [{"id": p.id, "amount": p.amount, "fee": p.fee, "tax": p.tax} for p in payments[:3]]
+                    "raw_rows": [{"id": p.id, "amount": paise_to_rupees(p.amount), "fee": paise_to_rupees(p.fee), "tax": paise_to_rupees(p.tax)} for p in payments[:3]]
                 },
-                "raw_data": {"payment_count": len(payments), "gross_amount": gross}
+                "raw_data": {"payment_count": len(payments), "gross_amount": gross_r}
             },
             {
                 "step_number": 3,
                 "name": "Audit Bank Statement Inflows",
                 "status": "SUCCESS" if btx else "DISCREPANCY",
                 "timestamp": now_str,
-                "findings": f"Matched Bank Transaction {btx.id} (Credit: ₹{btx.credit:,.2f}) with narration '{btx.description}'." if btx else f"Zero credits corresponding to UTR '{setl.utr if setl else ''}' located in Axis Bank statement.",
+                "findings": f"Matched Bank Transaction {btx.id} (Credit: ₹{btx_credit_r:,.2f}) with narration '{btx.description}'." if btx else f"Zero credits corresponding to UTR '{setl.utr if setl else ''}' located in Axis Bank statement.",
                 "sql_audit": {
                     "table_name": "bank_transactions",
                     "query_string": f"SELECT id, transaction_date, credit, description, bank_utr FROM bank_transactions WHERE bank_utr = '{setl.utr if setl else ''}' OR description LIKE '%{setl.utr if setl else ''}%'",
@@ -160,42 +169,42 @@ class WhatIfEngine:
                     "matched_rows_count": 1 if btx else 0,
                     "raw_rows": [{
                         "id": btx.id,
-                        "credit": btx.credit,
+                        "credit": btx_credit_r,
                         "description": btx.description,
                         "bank_utr": btx.bank_utr
                     }] if btx else []
                 },
-                "raw_data": {"bank_tx_id": btx.id if btx else "NONE", "credit": btx.credit if btx else 0.0}
+                "raw_data": {"bank_tx_id": btx.id if btx else "NONE", "credit": btx_credit_r}
             },
             {
                 "step_number": 4,
                 "name": "Verify Customer Refund Ledger",
                 "status": "INFO" if refunds == 0 else "WARNING",
                 "timestamp": now_str,
-                "findings": f"Verified ₹{refunds:,.2f} in customer returns deducted from this payout batch." if refunds > 0 else "No customer refunds linked to this batch.",
+                "findings": f"Verified ₹{refunds_r:,.2f} in customer returns deducted from this payout batch." if refunds > 0 else "No customer refunds linked to this batch.",
                 "sql_audit": {
                     "table_name": "payments",
                     "query_string": f"SELECT id, amount_refunded FROM payments WHERE id IN ({','.join([repr(pid) for pid in payment_ids[:5]]) if payment_ids else repr('')}) AND amount_refunded > 0",
                     "filter_params": {"payment_ids": payment_ids},
                     "matched_rows_count": sum(1 for p in payments if p.amount_refunded > 0),
-                    "raw_rows": [{"id": p.id, "amount_refunded": p.amount_refunded} for p in payments if p.amount_refunded > 0]
+                    "raw_rows": [{"id": p.id, "amount_refunded": paise_to_rupees(p.amount_refunded)} for p in payments if p.amount_refunded > 0]
                 },
-                "raw_data": {"refunds_deducted": refunds}
+                "raw_data": {"refunds_deducted": refunds_r}
             },
             {
                 "step_number": 5,
                 "name": "Audit MDR Fee & 18% GST Arithmetic",
                 "status": "SUCCESS",
                 "timestamp": now_str,
-                "findings": f"MDR Fee: ₹{fees:,.2f} + 18% GST: ₹{tax:,.2f}. Gross ₹{gross:,.2f} - Total Gateway Deductions ₹{(fees+tax):,.2f} = Expected Net ₹{(gross - fees - tax):,.2f}.",
+                "findings": f"MDR Fee: ₹{fees_r:,.2f} + 18% GST: ₹{tax_r:,.2f}. Gross ₹{gross_r:,.2f} - Total Gateway Deductions ₹{(fees_r+tax_r):,.2f} = Expected Net ₹{(gross_r - fees_r - tax_r):,.2f}.",
                 "sql_audit": {
                     "table_name": "settlements",
                     "query_string": f"SELECT (gross_amount - fees - tax) AS expected_net, amount FROM settlements WHERE id = '{setl.id if setl else ''}'",
-                    "filter_params": {"gross": gross, "fees": fees, "tax": tax},
+                    "filter_params": {"gross": gross_r, "fees": fees_r, "tax": tax_r},
                     "matched_rows_count": 1,
-                    "raw_rows": [{"gross": gross, "fees": fees, "tax": tax, "computed_net": gross - fees - tax}]
+                    "raw_rows": [{"gross": gross_r, "fees": fees_r, "tax": tax_r, "computed_net": gross_r - fees_r - tax_r}]
                 },
-                "raw_data": {"fees": fees, "tax": tax, "net_expected": gross - fees - tax}
+                "raw_data": {"fees": fees_r, "tax": tax_r, "net_expected": gross_r - fees_r - tax_r}
             },
             {
                 "step_number": 6,
@@ -217,19 +226,19 @@ class WhatIfEngine:
                 "name": "Synthesize Actionable Determination",
                 "status": "SUCCESS",
                 "timestamp": now_str,
-                "findings": f"Attributed variance of ₹{ex.difference:,.2f} with {ex.confidence}% confidence. Resolution: {ex.recommended_action}",
+                "findings": f"Attributed variance of ₹{diff_r:,.2f} with {ex.confidence}% confidence. Resolution: {ex.recommended_action}",
                 "sql_audit": {
                     "table_name": "exceptions",
                     "query_string": f"SELECT id, difference, confidence, recommended_action FROM exceptions WHERE id = '{ex.id}'",
                     "filter_params": {"exception_id": ex.id},
                     "matched_rows_count": 1,
-                    "raw_rows": [{"exception_id": ex.id, "variance": ex.difference, "confidence": ex.confidence}]
+                    "raw_rows": [{"exception_id": ex.id, "variance": diff_r, "confidence": ex.confidence}]
                 },
                 "raw_data": {"confidence": ex.confidence, "action": ex.recommended_action}
             }
         ]
 
-        diff = float(ex.difference)
+        diff = diff_r
         if ex.exception_type == "AMOUNT_MISMATCH":
             variance_attribution = {
                 "unlisted_gateway_fee": round(diff * 0.65, 2),

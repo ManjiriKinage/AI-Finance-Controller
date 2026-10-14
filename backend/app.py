@@ -10,10 +10,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from backend.database import engine, get_db, Base, SessionLocal
+from backend.money import rupees_to_paise, paise_to_rupees, quantize_inr
 from backend.models import (
     Merchant, Payment, Settlement, SettlementItem,
     BankTransaction, ReconciliationResult, ExceptionRecord, AuditLog, ForecastSnapshot,
-    ProcessedWebhook, quantize_inr
+    ProcessedWebhook
 )
 from backend.schemas import (
     OverviewMetrics, BenchmarkMetrics, CashForecastResponse,
@@ -63,13 +64,13 @@ def seed_database_internal(db: Session, num_payments: int = 500):
             merchant_id=p["merchant_id"],
             lineage_id=f"LIN-{(p['id'])[-6:]}",
             order_id=p["order_id"],
-            amount=quantize_inr(p["amount"]),
+            amount=rupees_to_paise(p["amount"]),
             currency=p["currency"],
             status=p["status"],
             method=p["method"],
-            fee=quantize_inr(p["fee"]),
-            tax=quantize_inr(p["tax"]),
-            amount_refunded=quantize_inr(p["amount_refunded"]),
+            fee=rupees_to_paise(p["fee"]),
+            tax=rupees_to_paise(p["tax"]),
+            amount_refunded=rupees_to_paise(p["amount_refunded"]),
             customer_email=p["customer_email"],
             captured_at=datetime.datetime.fromisoformat(p["captured_at"]) if p["captured_at"] else None,
             created_at=datetime.datetime.fromisoformat(p["created_at"])
@@ -80,10 +81,10 @@ def seed_database_internal(db: Session, num_payments: int = 500):
             id=s["id"],
             merchant_id=s["merchant_id"],
             lineage_id=f"LIN-{(s['utr'])[-6:]}",
-            amount=quantize_inr(s["amount"]),
-            gross_amount=quantize_inr(s["gross_amount"]),
-            fees=quantize_inr(s["fees"]),
-            tax=quantize_inr(s["tax"]),
+            amount=rupees_to_paise(s["amount"]),
+            gross_amount=rupees_to_paise(s["gross_amount"]),
+            fees=rupees_to_paise(s["fees"]),
+            tax=rupees_to_paise(s["tax"]),
             utr=s["utr"],
             status=s["status"],
             settlement_period=s["settlement_period"],
@@ -95,9 +96,9 @@ def seed_database_internal(db: Session, num_payments: int = 500):
             settlement_id=si["settlement_id"],
             payment_id=si["payment_id"],
             type=si["type"],
-            amount=quantize_inr(si["amount"]),
-            fee=quantize_inr(si["fee"]),
-            tax=quantize_inr(si["tax"])
+            amount=rupees_to_paise(si["amount"]),
+            fee=rupees_to_paise(si["fee"]),
+            tax=rupees_to_paise(si["tax"])
         ))
 
     for b in dataset["bank_transactions"]:
@@ -108,9 +109,9 @@ def seed_database_internal(db: Session, num_payments: int = 500):
             value_date=datetime.datetime.fromisoformat(b["value_date"]),
             description=b["description"],
             reference=b["reference"],
-            credit=quantize_inr(b["credit"]),
-            debit=quantize_inr(b["debit"]),
-            balance=quantize_inr(b["balance"]),
+            credit=rupees_to_paise(b["credit"]),
+            debit=rupees_to_paise(b["debit"]),
+            balance=rupees_to_paise(b["balance"]),
             bank_utr=b["bank_utr"]
         ))
 
@@ -219,9 +220,13 @@ async def ingest_razorpay_webhook(
     # Process entity payload
     entity = payload.get("payload", {}).get("payment", {}).get("entity") or {}
     if entity and "id" in entity:
-        amt = quantize_inr(float(entity.get("amount", 0)) / 100.0) # Razorpay amounts in paise
+        # Razorpay sends amount, fee, tax in integer paise
+        raw_amt = entity.get("amount", 0)
+        amt = int(raw_amt) if isinstance(raw_amt, (int, float)) else rupees_to_paise(raw_amt)
         pay_id = entity.get("id")
         if not db.query(Payment).filter(Payment.id == pay_id).first():
+            fee = int(entity.get("fee", 0))
+            tax = int(entity.get("tax", 0))
             db.add(Payment(
                 id=pay_id,
                 order_id=entity.get("order_id", "order_live_001"),
@@ -230,8 +235,8 @@ async def ingest_razorpay_webhook(
                 currency=entity.get("currency", "INR"),
                 status=entity.get("status", "captured"),
                 method=entity.get("method", "upi"),
-                fee=quantize_inr(float(entity.get("fee", 0)) / 100.0),
-                tax=quantize_inr(float(entity.get("tax", 0)) / 100.0),
+                fee=fee,
+                tax=tax,
                 created_at=datetime.datetime.now(datetime.UTC)
             ))
             db.commit()
@@ -258,41 +263,43 @@ def get_overview(db: Session = Depends(get_db)):
     
     match_rate = round((matched_count / max(1, total_settlements)) * 100, 2)
     
-    expected_settlement_total = db.query(func.sum(Settlement.amount)).scalar() or 0.0
-    actual_bank_credit_total = db.query(func.sum(BankTransaction.credit)).scalar() or 0.0
+    expected_settlement_total_paise = db.query(func.sum(Settlement.amount)).scalar() or 0
+    actual_bank_credit_total_paise = db.query(func.sum(BankTransaction.credit)).scalar() or 0
     
     open_exceptions = [e for e in exceptions if e.status == "OPEN" and e.exception_type != "DUPLICATE_ENTRY"]
-    unexplained_diff = quantize_inr(sum(e.difference for e in open_exceptions))
+    unexplained_diff_paise = sum(e.difference for e in open_exceptions)
     
     auto_resolved = sum(1 for e in exceptions if e.status == "RESOLVED")
     human_review = sum(1 for e in exceptions if e.status == "OPEN")
 
     ex_breakdown = {}
     sev_breakdown = {"HIGH": 0, "MEDIUM": 0, "LOW": 0}
-    why_by_type = {}
+    why_by_type_paise = {}
     
     for e in exceptions:
         ex_breakdown[e.exception_type] = ex_breakdown.get(e.exception_type, 0) + 1
         sev_breakdown[e.severity] = sev_breakdown.get(e.severity, 0) + 1
         if e.status == "OPEN":
-            why_by_type[e.exception_type] = quantize_inr(why_by_type.get(e.exception_type, 0.0) + e.difference)
+            why_by_type_paise[e.exception_type] = why_by_type_paise.get(e.exception_type, 0) + e.difference
+
+    causes_rupees = {k: paise_to_rupees(v) for k, v in why_by_type_paise.items()}
 
     return {
         "total_transactions": total_settlements + db.query(BankTransaction).count(),
         "matched_count": matched_count,
         "exceptions_count": exceptions_count,
         "match_rate": match_rate,
-        "expected_settlement_total": quantize_inr(expected_settlement_total),
-        "actual_bank_credit_total": quantize_inr(actual_bank_credit_total),
-        "unexplained_difference": unexplained_diff,
+        "expected_settlement_total": paise_to_rupees(expected_settlement_total_paise),
+        "actual_bank_credit_total": paise_to_rupees(actual_bank_credit_total_paise),
+        "unexplained_difference": paise_to_rupees(unexplained_diff_paise),
         "auto_resolved_count": auto_resolved,
         "human_review_required": human_review,
         "exception_breakdown": ex_breakdown,
         "severity_breakdown": sev_breakdown,
         "why_breakdown": {
-            "total_unreconciled": unexplained_diff,
-            "causes": why_by_type,
-            "top_cause": max(why_by_type, key=why_by_type.get) if why_by_type else "None",
+            "total_unreconciled": paise_to_rupees(unexplained_diff_paise),
+            "causes": causes_rupees,
+            "top_cause": max(why_by_type_paise, key=why_by_type_paise.get) if why_by_type_paise else "None",
             "most_likely_source": "Razorpay settlement dispute reserves and unlisted gateway deductions"
         }
     }
@@ -344,6 +351,46 @@ def get_decision_gate(result_id: int, db: Session = Depends(get_db)):
 @app.get("/api/daily-close/status", response_model=DailyCloseResponse)
 @app.post("/api/daily-close/run", response_model=DailyCloseResponse)
 def get_daily_close(db: Session = Depends(get_db)):
+    close_eng = DailyCloseEngine(db)
+    return close_eng.compute_daily_close()
+
+@app.post("/api/daily-close/execute", response_model=DailyCloseResponse)
+def execute_daily_close(
+    actor: str = Query("FINANCE_CONTROLLER"),
+    db: Session = Depends(get_db)
+):
+    # Resolve all open exceptions and provision them for period close
+    open_exs = db.query(ExceptionRecord).filter(ExceptionRecord.status.in_(["OPEN", "UNDER_REVIEW"])).all()
+    now_dt = datetime.datetime.now(datetime.UTC)
+    for ex in open_exs:
+        ex.status = "RESOLVED"
+        ex.resolved_by = actor
+        ex.resolved_at = now_dt
+        ex.resolution_notes = f"Provisioned and cleared for Daily Close by {actor}."
+        db.add(AuditLog(
+            entity_type="EXCEPTION",
+            entity_id=ex.id,
+            lineage_id=ex.lineage_id,
+            action="PERIOD_CLOSE_PROVISION",
+            actor=actor,
+            before_state={"status": "OPEN"},
+            after_state={"status": "RESOLVED", "notes": ex.resolution_notes},
+            reason="Daily Period General Ledger Sign-Off"
+        ))
+
+    # Add master daily close audit record
+    db.add(AuditLog(
+        entity_type="DAILY_CLOSE",
+        entity_id=f"CLOSE_{datetime.date.today().strftime('%Y%m%d')}",
+        lineage_id="FIN-CLOSE-AUDIT",
+        action="EXECUTE_PERIOD_CLOSE",
+        actor=actor,
+        before_state={"status": "PENDING_CLOSE"},
+        after_state={"status": "CLOSED_AND_SIGNED_OFF"},
+        reason="Official General Ledger Close on Axis Bank Nodal Account and Razorpay Settlements"
+    ))
+    db.commit()
+
     close_eng = DailyCloseEngine(db)
     return close_eng.compute_daily_close()
 
@@ -456,9 +503,9 @@ def handle_exception_action(
         
     before_state = {"status": ex.status, "notes": ex.resolution_notes}
     
-    if action_req.action in ["APPROVE_ADJUSTMENT", "MANUAL_RESOLVE", "FORCE_MATCH"]:
+    if action_req.action in ["APPROVE_ADJUSTMENT", "MANUAL_RESOLVE", "FORCE_MATCH", "SIMULATE_AUTO_ACCRUAL", "BATCH_APPROVE", "EXECUTE_CLOSE"]:
         ex.status = "RESOLVED"
-        ex.resolved_by = action_req.actor
+        ex.resolved_by = action_req.actor or "FINANCE_OPS"
         ex.resolved_at = datetime.datetime.now(datetime.UTC)
         ex.resolution_notes = action_req.notes or f"Action {action_req.action} applied by {action_req.actor}."
     elif action_req.action == "REJECT":

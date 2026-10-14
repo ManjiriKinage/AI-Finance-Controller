@@ -1,6 +1,7 @@
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime
+from backend.money import paise_to_rupees
 
 # Payment Schemas
 class PaymentBase(BaseModel):
@@ -20,8 +21,19 @@ class PaymentBase(BaseModel):
 class PaymentResponse(PaymentBase):
     merchant_id: str
     captured_at: Optional[datetime] = None
+    amount_paise: Optional[int] = None
+    fee_paise: Optional[int] = None
+    tax_paise: Optional[int] = None
+    amount_refunded_paise: Optional[int] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("amount", "fee", "tax", "amount_refunded", mode="before")
+    @classmethod
+    def convert_amount_to_rupees(cls, v: Any) -> float:
+        if isinstance(v, int):
+            return paise_to_rupees(v)
+        return float(v) if v is not None else 0.0
 
 # Settlement Schemas
 class SettlementBase(BaseModel):
@@ -38,8 +50,19 @@ class SettlementBase(BaseModel):
 
 class SettlementResponse(SettlementBase):
     merchant_id: str
+    amount_paise: Optional[int] = None
+    gross_amount_paise: Optional[int] = None
+    fees_paise: Optional[int] = None
+    tax_paise: Optional[int] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("amount", "gross_amount", "fees", "tax", mode="before")
+    @classmethod
+    def convert_amount_to_rupees(cls, v: Any) -> float:
+        if isinstance(v, int):
+            return paise_to_rupees(v)
+        return float(v) if v is not None else 0.0
 
 # Bank Transaction Schemas
 class BankTransactionBase(BaseModel):
@@ -55,7 +78,18 @@ class BankTransactionBase(BaseModel):
     lineage_id: Optional[str] = None
 
 class BankTransactionResponse(BankTransactionBase):
+    credit_paise: Optional[int] = None
+    debit_paise: Optional[int] = None
+    balance_paise: Optional[int] = None
+
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("credit", "debit", "balance", mode="before")
+    @classmethod
+    def convert_amount_to_rupees(cls, v: Any) -> float:
+        if isinstance(v, int):
+            return paise_to_rupees(v)
+        return float(v) if v is not None else 0.0
 
 # Exception Evidence and Explanations
 class EvidenceItem(BaseModel):
@@ -83,6 +117,9 @@ class ExceptionResponse(BaseModel):
     expected_amount: float
     actual_amount: float
     difference: float
+    expected_amount_paise: Optional[int] = None
+    actual_amount_paise: Optional[int] = None
+    difference_paise: Optional[int] = None
     confidence: float
     ai_explanation: Optional[Dict[str, Any]] = None
     status: str
@@ -93,6 +130,13 @@ class ExceptionResponse(BaseModel):
     created_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("expected_amount", "actual_amount", "difference", mode="before")
+    @classmethod
+    def convert_amount_to_rupees(cls, v: Any) -> float:
+        if isinstance(v, int):
+            return paise_to_rupees(v)
+        return float(v) if v is not None else 0.0
 
 class ExceptionActionRequest(BaseModel):
     action: str
@@ -112,10 +156,21 @@ class ReconciliationResultResponse(BaseModel):
     expected_amount: float
     actual_amount: float
     difference: float
+    expected_amount_paise: Optional[int] = None
+    actual_amount_paise: Optional[int] = None
+    difference_paise: Optional[int] = None
     reason: Optional[str] = None
     created_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("expected_amount", "actual_amount", "difference", mode="before")
+    @classmethod
+    def convert_amount_to_rupees(cls, v: Any) -> float:
+        if isinstance(v, int):
+            return paise_to_rupees(v)
+        return float(v) if v is not None else 0.0
+
 
 # Overview Metrics Schema
 class OverviewMetrics(BaseModel):
