@@ -96,7 +96,7 @@ To launch the hardened stack locally:
 # Terminal 1: Launch FastAPI Backend
 python -m uvicorn backend.app:app --host 0.0.0.0 --port 8000 --reload
 
-# Terminal 2: Launch Next.js Frontend
+# Terminal 2: Launch Next.js Frontend![alt text](image.png)
 cd frontend
 npm run dev
 ```

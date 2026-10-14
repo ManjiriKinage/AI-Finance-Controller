@@ -428,7 +428,7 @@ export const api = {
     if (params?.severity) query.append("severity", params.severity);
     if (params?.status) query.append("status", params.status);
     if (params?.type) query.append("exception_type", params.type);
-    
+
     const res = await fetch(`${API_BASE}/api/exceptions?${query.toString()}`);
     if (!res.ok) throw new Error("Failed to fetch exceptions");
     return res.json();
