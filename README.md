@@ -1,11 +1,13 @@
+
 # AI Finance Controller
 
 **Autonomous Multi-Source Reconciliation, Evidence-Backed Exception Management & Cash Intelligence**
 
-Sitting between **Razorpay Payments**, **Settlements**, **Bank Statements**, and **Accounting Ledgers**, AI Finance Controller automates verified financial operations using the principle:
-> **Deterministic first. AI second. Human last.**
+🔗 **Live Demo:** https://ai-finance-controller-pi.vercel.app/
 
----
+Sitting between **Razorpay Payments**, **Settlements**, **Bank Statements**, and **Accounting Ledgers**, AI Finance Controller automates verified financial operations using the principle:
+
+> **Deterministic first. AI second. Human last.**
 
 ## Key Features
 
