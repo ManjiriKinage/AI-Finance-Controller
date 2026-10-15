@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { BottomNav } from "@/components/BottomNav";
 
 export const metadata: Metadata = {
   title: "RECONOPS | Institutional Financial Operations Control",
@@ -25,6 +26,8 @@ export default function RootLayout({
         <div className="flex-1 flex flex-col">
           {children}
         </div>
+        {/* Persistent Static Mobile Navigation for Phone (< 1024px) */}
+        <BottomNav />
       </body>
     </html>
   );

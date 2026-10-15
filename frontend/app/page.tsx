@@ -4,7 +4,6 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { Sidebar } from "@/components/Sidebar";
 import { Navbar } from "@/components/Navbar";
-import { BottomNav } from "@/components/BottomNav";
 import { WhyModal } from "@/components/WhyModal";
 import { BenchmarkModal } from "@/components/BenchmarkModal";
 import { ExceptionDrawer } from "@/components/ExceptionDrawer";
@@ -722,12 +721,6 @@ export default function MainPage() {
 
         </main>
       </div>
-
-      {/* Mobile Bottom Tab Bar (< 1024px) */}
-      <BottomNav
-        exceptionCount={pendingExceptions.length}
-        onOpenDailyClose={() => setIsDailyCloseOpen(true)}
-      />
 
       {/* Interactive Modals */}
       <WhyModal

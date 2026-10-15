@@ -5,10 +5,7 @@ import Link from "next/link";
 import {
   ShieldCheck,
   RefreshCw,
-  Search,
-  Bell,
-  Menu,
-  X
+  Search
 } from "lucide-react";
 import { api } from "@/lib/api";
 
@@ -21,7 +18,6 @@ interface NavbarProps {
 
 export function Navbar({ onReconcileTrigger, onOpenBenchmark, onOpenDailyClose, onOpenAccuracyCenter }: NavbarProps) {
   const [isSyncing, setIsSyncing] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleQuickRecon = async () => {
     try {
